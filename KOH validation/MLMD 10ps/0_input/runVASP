@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+#SBATCH --job-name='JOB_NAME'
+#SBATCH --partition=compute
+#SBATCH --time=5-00:00:00
+#SBATCH --ntasks=48
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=3000M
+#SBATCH --account=research-3me-pe
+##SBATCH --exclusive
+
+module load 2023rc1-gcc11
+module load openmpi
+module load openblas
+module load netlib-scalapack
+module load fftw
+module load hdf5
+
+srun PATH_TO/vasp_gam
+mkdir initiation
+cp * initiation/
+
+rm CHG* CONT* DOS* EIG* IBZ* OSZ* OUT* PCDA* REP* vas* WAV* XDAT* *.dat HIL* ML* POSCAR ICON*
+
+cp initiation/CONTCAR POSCAR
+cp initiation/ML_ABN ML_AB
+sed -i "s/NSW = 5000/NSW = 10000/" INCAR
+
+srun PATH_TO/vasp_gam
