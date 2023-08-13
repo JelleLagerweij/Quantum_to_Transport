@@ -450,6 +450,28 @@ class Prot_Hop:
         return calculation.msd*Npart
 
     def viscosity(self, plotting=False, cubicspline=False, padding=0):
+        """
+        The viscosity is calculated using stress-tensor Auto-correlation
+        functions (Green-Kubo).
+
+        Parameters
+        ----------
+        plotting : Boolean, optional
+            Plot the autocorrelation function. The default is False.
+        cubicspline : Integer, optional
+            Use cubic splines to improve detail in autocorrelation function.
+            The default is False.
+        padding : integer or float, optional
+            Removes first padding number of stress tensor components from the
+            calculation, in an attempt to use more trustworthy data. The
+            default is 0.
+
+        Returns
+        -------
+        viscosity : TYPE
+            DESCRIPTION.
+
+        """
         padding = int(padding)
         p_ab = np.zeros((5, len(self.t)))
         p_ab[0, :] = self.stress[:, 0, 1]

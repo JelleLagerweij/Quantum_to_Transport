@@ -42,19 +42,17 @@ plt.rcParams['legend.fontsize'] = 'large'
 plt.rcParams['legend.frameon'] = False
 plt.rcParams['legend.labelspacing'] = 0.75
 # File properties and location
-# mpl.use("SVG")
-figures = r'C:/Users/Jelle/Delft University of Technology/Jelle Lagerweij Master - Documents/General/Personal Thesis files/00 Literature study/figures/MLMD100ps'
 # Done
 
 ###############################################################################
 
-path = '../../RPBE_Production/MLMD/100ps_Exp_Density/'
-folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
+path = 'VASP example output '
+folder = ['i_1']
 
 n_KOH = 1
 n_H2O = 55
 
-n_steps = 100000
+n_steps = 10000
 # n_steps = 10000
 MSDOH = np.zeros(n_steps)
 MSDK = np.zeros(n_steps)
@@ -84,9 +82,9 @@ for i in range(len(folder)):
     loc_K = Traj.track_K()
     loc_H2O = Traj.track_H2O(index)
 
-    visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=2.5e4)
+    visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
 
-    r, rdfs, n_conf = Traj.rdf(interpol=64, plotting=True,
+    r, rdfs, n_conf = Traj.rdf(interpol=64, plotting=False,
                                r_end=[4.2, 3.3, 3.5])
     n_OO[i], n_HO[i], n_KO[i] = n_conf
     OO[i, :], HO[i, :], KO[i, :] = rdfs
@@ -124,15 +122,15 @@ for i in range(len(folder)):
     plt.figure('OH index')
     plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
 
-    n = np.arange(start=10000, stop=n_steps, step=25)
+    n = np.arange(start=100, stop=n_steps, step=25)
     # n = np.arange(start=30000, stop=n_steps, step=75)
     t_test = Traj.t[n]
     MSD_test = msdOH[n]
-    diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=False)
     MSD_test = msdK[n]
-    diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=False)
     MSD_test = msdH2O[n]
-    diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
+    diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=False)
 
 
 # rdfs= np.array([r, np.mean(OO, axis=0), np.std(OO, axis=0),
@@ -142,82 +140,71 @@ for i in range(len(folder)):
 
 plt.figure('pressure')
 plt.xlabel('time in/[ps]')
-plt.ylabel('Pressure/[Pa]')
-plt.xlim(0, 100)
+plt.ylabel('Pressure/[bar]')
+plt.xlim(0, 10)
 plt.legend()
-# plt.savefig(figures+'pressure.svg')
 
 plt.figure('kinetic energy')
 plt.xlabel('time in/[ps]')
-plt.ylabel('kinetic energy/[J]')
-plt.xlim(0, 100)
+plt.ylabel('kinetic energy/[eV]')
+plt.xlim(0, 10)
 plt.legend()
-# plt.savefig(figures+'ekin.svg')
 
 plt.figure('potential energy')
 plt.xlabel('time in/[ps]')
-plt.ylabel('potential energy/[J]')
-plt.xlim(0, 100 )
+plt.ylabel('potential energy/[eV]')
+plt.xlim(0, 10)
 plt.legend()
-# plt.savefig(figures+'epot.svg')
 
 plt.figure('total energy')
 plt.xlabel('time in/[ps]')
-plt.ylabel('total energy/[J]')
-plt.xlim(0, 100 )
+plt.ylabel('total energy/[eV]')
+plt.xlim(0, 10)
 plt.legend()
-# plt.savefig(figures+'etot.svg')
 
 plt.figure('temperature')
 plt.xlabel('time in/[ps]')
 plt.ylabel('temperature/[K]')
-plt.xlim(0, 100 )
+plt.xlim(0, 10)
 plt.legend()
-# plt.savefig(figures+'temp.svg')
 
 plt.figure('BEEF')
 plt.xlabel('time in/[ps]')
 plt.ylabel('force/[eV/angstrom]')
-plt.xlim(0, 100 )
+plt.xlim(0, 10)
 plt.ylim(0, 0.15)
 plt.legend()
-# plt.savefig(figures+'BEEF.svg')
 
 plt.figure('BEES')
 plt.xlabel('time in/[ps]')
 plt.ylabel('stress/[bar]')
-plt.xlim(0, 100)
+plt.xlim(0, 10)
 plt.legend()
-# plt.savefig(figures+'BEES.svg')
 
 plt.figure('OH index')
 plt.xlabel('time in/[ps]')
 plt.ylabel('Index of oxygen of OH-')
-plt.xlim(0, 100)
+plt.xlim(0, 10)
 plt.ylim(-5, 60)
 plt.legend()
-# plt.savefig(figures+'OH_Index.svg')
 
 # multiple window loglog
 plt.figure('multiple window loglog OH')
 plt.legend()
 plt.xlabel('time in/[ps]')
 plt.ylabel('MSD/[A2]')
-# plt.savefig(figures+'MSD_OH.svg')
 
 # multiple window loglog
 plt.figure('multiple window loglog K')
 plt.legend()
 plt.xlabel('time in/[ps]')
 plt.ylabel('MSD/[A2]')
-# plt.savefig(figures+'MSD_K.svg')
 
 # multiple window loglog
 plt.figure('multiple window loglog H2O')
 plt.legend()
 plt.xlabel('time in/[ps]')
 plt.ylabel('MSD/[A2]')
-# plt.savefig(figures+'MSD_H2O.svg')
 
 p = np.sum(unumpy.uarray(press[:, 0], press[:, 1]))/5
 t = np.sum(unumpy.uarray(Temp[:, 0], Temp[:, 1]))/5
