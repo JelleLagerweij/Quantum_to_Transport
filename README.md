@@ -11,6 +11,9 @@ The "bozsizes.py" python code provides the right lengths to input given a certai
 These simulations use 5 ps of equilibriation after which the results are coppied to a initation folder and the 20ps simulations are started.
 
 ## KOH production
+The KOH production calculations are used to compute the main results of this work. These are prepaired to run immidiately if intended, starting up 5 different calculations with different atomic starting postions and velocities.
+The simulations can be ran using the "run.sh" script. In this script the link to the POSCARS can be changed to be either at 1335kg/m^3 or 1048kg/m^3, the calculated and experimental equilibrium density.
+Though, be carefule as the POTCAR is not provided due to it being interlectual properties of VASP.
 
 
 ## KOH validation
