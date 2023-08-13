@@ -7,8 +7,8 @@ All simulations are performed with VASP 6.4.1, compiled with gcc 11. Modules loa
 ## KOH density
 The simulations prepared for checking the equilibrium density of KOH are contained in this folder.
 Note that only 1 POSCAR is provided, and the box size has to be manually changed, by adjusting the first 4 lines of the POSCAR.
-The "bozsizes.py" python code provides the right lengths to input given a certain density.
-
+The "bozsizes.py" python code provides the right lengths to input given a certain density. Note that the "runVASP_GCC" file is prepaired for a slurm scheduler, however the user needs to adjust the path to their VASP 6.4.1 instalation.
+These simulations use 5 ps of equilibriation after which the results are coppied to a initation folder and the 20ps simulations are started.
 
 ## KOH production
 

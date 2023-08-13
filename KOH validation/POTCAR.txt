@@ -1,0 +1,9 @@
+POTCARS are interlectual properties of VASP. These should be retrieved with your own licence.
+The following POTCARS are used and should be concatenated in this order:
+ 
+  PAW_PBE H_h_GW 21Apr2008                   
+
+  PAW_PBE O_GW_new 19Mar2012                     
+  
+  PAW_PBE K_sv_GW 31Mar2010                  
+  
