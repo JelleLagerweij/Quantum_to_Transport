@@ -20,6 +20,7 @@ The KOH validation simulations are similar to KOH production. They are shorter: 
 
 ## post-processing scripts
 In the post-processing scripts folder all post-prossesing scripts of the pure water, the KOH validation and the KOH production simulations.
+Additional instructions are provided in the subfolders of the post-processing scripts.
 
 ## Pure water
 In the subdirectory with this name, the simulation settings and input files of a system of 64 waters molecule is availlable.
