@@ -16,10 +16,11 @@ The simulations can be ran using the "run.sh" script. In this script the link to
 Do not run as is, as the POTCAR is not provided due to it being interlectual properties of VASP.
 
 ## KOH validation
-
+The KOH validation simulations are similar to KOH production. They are shorter: only 10 ps, and AIMD and MLMD runs can both be executed.
 
 ## post-processing scripts
 In the post-processing scripts folder all post-prossesing scripts of the pure water, the KOH validation and the KOH production simulations.
 
 ## Pure water
 In the subdirectory with this name, the simulation settings and input files of a system of 64 waters molecule is availlable.
+Four different INCARS are provided, mixing AIMD and MLMD as well as RPPBE-D3 and rVV10 r2SCAN.
