@@ -1,11 +1,12 @@
 {
   "ExpandedNodes": [
     "",
-    "\\KOH production",
     "\\KOH production\\0_input",
-    "\\KOH production\\0_input\\POSCARS\\i_1",
-    "\\KOH production\\0_input\\POSCARS\\i_4"
+    "\\post-processing scripts",
+    "\\post-processing scripts\\KOH systems",
+    "\\post-processing scripts\\KOH systems\\Old algorithm",
+    "\\post-processing scripts\\KOH systems\\VASP example output i_1"
   ],
-  "SelectedNode": "\\KOH production\\0_input\\INCAR",
+  "SelectedNode": "\\post-processing scripts\\KOH systems\\Old algorithm",
   "PreviewInSolutionExplorer": false
 }

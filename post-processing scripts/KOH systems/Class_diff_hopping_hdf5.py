@@ -101,7 +101,11 @@ class Prot_Hop:
 
         self.stress = self.df.stress[:].to_dict()['stress']
         self.energy  = self.df.energy[:].to_dict()
-
+        
+        # number of OH-, H2O and H3O+ counter
+        self.N_OH = np.zeros(self.n_max)
+        self.N_H2O = np.zeros(self.n_max)
+        self.N_H3O = np.zeros(self.n_max)
     def find_O_i(self, n):
         """
         Find the index of the Oxygen beloging to the OH-.
@@ -149,6 +153,70 @@ class Prot_Hop:
             O_i = np.where(number == 1) + self.N_H
 
         self.O_i = O_i.flatten()
+        # Create neighborlist with this data as well. Do it here as there is
+        # no need to compute distances again.
+        d_sq = d_sq[:, self.O_i-self.N_H].flatten()
+        self.H_n = np.sort(np.argpartition(d_sq, self.n_list)[:self.n_list])
+        self.n_list_c = 0  # reset counter for neighborlist updating
+
+        if startup is False:
+            # Check which is the correct image of the particle that is reacted
+            # with And update the number of boundary passes that it has had.
+            # compute true displacement
+            dis = (x[O_i, :] - x[O_i_old, :] + self.L/2) % self.L - self.L/2
+            real_loc = x[O_i_old, :] + dis
+            self.shift += real_loc - x[O_i, :]
+            self.x_O_i = x[O_i, :]
+
+    def find_O_i(self, n):
+        """
+        Find the index of the Oxygen beloging to the OH-.
+
+        This function searches for the index of the Oxygen belonging to the OH-
+        particles. It automatically creates a neighbor list as well as an array
+        which holds the unwraped location of the real OH particle.
+
+        Parameters
+        ----------
+        n : integer
+            Timestep of the assesment.
+        Returns
+        -------
+        None.
+
+        """
+        if n == 0:
+            startup = True
+        else:
+            startup = False
+            
+        # Retrieve ALL particle positions.
+        x = self.pos[n, :, :]
+        if startup is False:
+            O_i_old = self.O_i
+
+        # Compute ALL particle distances^2 including PBC.
+        r = np.broadcast_to(x, (self.N_tot, self.N_tot, 3))
+        r_vect = (r - r.transpose(1, 0, 2) + self.L/2) % self.L - self.L/2
+        d_sq = np.einsum('ijk, ijk->ij', r_vect, r_vect, optimize='optimal')
+
+        # Compute which atom index belongs to the OH- Oxygen.
+        d_sq = d_sq[np.ix_(self.H, self.O)]
+        closest_O_per_H = np.argmin(d_sq, axis=1)
+        counter_H_per_O = np.bincount(closest_O_per_H)
+
+        # find number of OH-:
+        O_i = np.where(counter_H_per_O == 1) + self.N_H
+        self.O_i = O_i.flatten()
+
+        # find number of H2O:
+        O_i_H2O = np.where(counter_H_per_O == 2) + self.N_H
+        self.O_i_H2O = O_i_H2O.flatten()
+
+        # find number of H3O+
+        O_i_H3O = np.where(counter_H_per_O == 3) + self.N_H
+        self.O_i_H3O = O_i_H3O.flatten()
+
         # Create neighborlist with this data as well. Do it here as there is
         # no need to compute distances again.
         d_sq = d_sq[:, self.O_i-self.N_H].flatten()
@@ -236,6 +304,11 @@ class Prot_Hop:
             self.O_i_stored[j] = self.O_i
             self.O_loc_stored[j, :, :] = self.x_O_i + self.shift
             self.n_list_c += 1
+            
+            self.N_OH[j] = len(self.O_i)
+            self.N_H2O[j] = len(self.O_i_H2O)
+            self.N_H3O[j] = len(self.O_i_H3O)
+
             if self.O_i != self.O_i_stored[j-1]:
                 counter += 1
 
