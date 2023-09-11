@@ -46,7 +46,7 @@ plt.rcParams['legend.labelspacing'] = 0.75
 
 ###############################################################################
 
-path = 'VASP example output '
+path = '../VASP example output '
 folder = ['i_1']
 
 n_KOH = 1
