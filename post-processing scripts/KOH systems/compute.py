@@ -46,8 +46,8 @@ plt.rcParams['legend.labelspacing'] = 0.75
 
 ###############################################################################
 
-path = 'VASP example output '
-folder = ['i_1']
+path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
+folder = ['i_3']
 
 n_KOH = 1
 n_H2O = 55
