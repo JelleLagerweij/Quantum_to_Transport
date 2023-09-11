@@ -106,6 +106,7 @@ class Prot_Hop:
         self.N_OH = np.zeros(self.n_max)
         self.N_H2O = np.zeros(self.n_max)
         self.N_H3O = np.zeros(self.n_max)
+
     def find_O_i(self, n):
         """
         Find the index of the Oxygen beloging to the OH-.
@@ -127,7 +128,7 @@ class Prot_Hop:
             startup = True
         else:
             startup = False
-            
+
         # Retrieve ALL particle positions.
         x = self.pos[n, :, :]
         if startup is False:
@@ -232,39 +233,10 @@ class Prot_Hop:
             self.shift += real_loc - x[O_i, :]
             self.x_O_i = x[O_i, :]
 
-    def find_H_n(self, n):
-        """
-        Update the neighborlist of the Hydrogen atoms.
-
-        The neighborlist of the Hydrogen atoms makes it fast to compute if the
-        OH- has hoped, however, it needs to be updated every so often.
-
-        Parameters
-        ----------
-        n : integer
-            Timestep at which the neighborlist is updated.
-
-        Returns
-        -------
-        None.
-
-        """
-        # Retrieve particle positions O_i and ALL Hydrogens
-        x_O_i = self.pos[n, self.O_i, :]
-        x_H = self.pos[n, self.H, :]
-
-        # Compute particle distances^2 between O_i and all H including PBC.
-        rel_r = (x_H - x_O_i + self.L/2) % self.L - self.L/2
-        d_sq = np.einsum('ij, ij -> i', rel_r, rel_r)
-
-        # Get index of the neighborlist Hydrogen
-        self.H_n = np.sort(np.argpartition(d_sq, self.n_list)[:self.n_list])
-        self.n_list_c = 0  # reset counter for neighborlist updating
-
     def track_OH(self, N_neighbor=100, rdf=False):
         """
         Run the timeloop and tracks the OH- and store its index and location.
-        
+
         The unwraped locations and the atomic index of the Oxygen belonging to
         the OH- are returned.
 
@@ -280,31 +252,19 @@ class Prot_Hop:
             DESCRIPTION.
 
         """
-        
         # Prep things to track
         self.O_i_stored = np.zeros(self.n_max)
         self.O_loc_stored = np.zeros((self.n_max, self.n_OH, 3))
-        counter = 0
+        counter = 0  # reaction counter
         # Run the big loop
         for j in range(self.n_max):
-            self.x_O_i = self.pos[j, self.O_i, :]
-            self.x_H_n = self.pos[j, self.H_n, :]
-            rel_r = (self.x_H_n - self.x_O_i + self.L/2) % self.L - self.L/2
-            d_sq = np.einsum('ij, ij -> i', rel_r, rel_r)
-            n = np.count_nonzero(d_sq < self.r_bond**2)
-
-            if n > 1:
-                # New O_i particle to find
-                self.find_O_i(j)
-
-            if self.n_list_c > N_neighbor:
-                # Update neighbor list ever so often
-                self.find_H_n(j)
-
+            if j == 22391:
+                j = j
+            self.x_O_i = self.pos[j, self.O_i, :]  # old position for PBC
+            self.find_O_i(j)
             self.O_i_stored[j] = self.O_i
             self.O_loc_stored[j, :, :] = self.x_O_i + self.shift
-            self.n_list_c += 1
-            
+
             self.N_OH[j] = len(self.O_i)
             self.N_H2O[j] = len(self.O_i_H2O)
             self.N_H3O[j] = len(self.O_i_H3O)
@@ -324,7 +284,7 @@ class Prot_Hop:
         nb = properties[0]
         rstart = properties[1]
         rstop = properties[2]
-        
+
         # Retrieve ALL particle positions.
         x = self.pos[n, :, :]
 
