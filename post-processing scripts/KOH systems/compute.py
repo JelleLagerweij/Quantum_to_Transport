@@ -7,55 +7,113 @@ import Class_diff_hopping_hdf5 as hop
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import os
 import scipy.constants as co
 import uncertainties as unc
 from uncertainties import unumpy
 plt.close('all')
 
 ###############################################################################
-# Setting the default figure properties for my thesis
+# Setting the default figure properties for all documents
 plt.close('all')
-plt.rcParams["figure.figsize"] = [6, 5]
+plt.rcParams["figure.figsize"] = [8, 6]
 label_spacing = 1.1
 marker = ['o', 'x', '^', '>']
 
-# Fonts
-plt.rcParams["svg.fonttype"] = "none"
-plt.rcParams["font.family"] = "sans-serif"
+# Papers
+# # Fonts
+# plt.rcParams["svg.fonttype"] = "none"
+# plt.rcParams["font.family"] = "sans-serif"
+# plt.rcParams["axes.grid"] = "False"
+
+# # Sizes of specific parts
+# plt.rcParams['axes.labelsize'] = 'large'
+# plt.rcParams['axes.linewidth'] = 2
+# plt.rcParams['xtick.major.pad'] = 7
+# plt.rcParams['ytick.major.pad'] = 5
+# plt.rcParams['xtick.labelsize'] = 'large'
+# plt.rcParams['ytick.labelsize'] = 'large'
+# plt.rcParams['lines.markersize'] = 10
+# plt.rcParams['lines.markeredgewidth'] = 2
+# plt.rcParams['lines.linewidth'] = 2
+# plt.rcParams['xtick.major.size'] = 5
+# plt.rcParams['xtick.major.width'] = 2
+# plt.rcParams['ytick.major.size'] = 5
+# plt.rcParams['ytick.major.width'] = 2
+# plt.rcParams['legend.fontsize'] = 'large'
+# plt.rcParams['legend.frameon'] = False
+# plt.rcParams['legend.labelspacing'] = 0.75
+# plt.rcParams['axes.grid'] = True
+# # File properties and location
+# # Done
+
+# Presentations
+pgf_with_latex = {                      # setup matplotlib to use latex for output
+    "pgf.texsystem": "lualatex",        # change this if using xetex or lautex
+    "text.usetex": True,                # use LaTeX to write all text
+    "font.family": 'serif',
+    "pgf.rcfonts": False,    # don't setup fonts from rc parameters
+    "pgf.preamble": "\n".join([ # plots will use this preamble
+        r"\RequirePackage{amsmath}",
+        r"\RequirePackage{fontspec}",   # unicode math setup
+        r"\setmainfont[Scale = MatchLowercase]{DejaVu Serif}",
+        r"\setsansfont[Scale = MatchLowercase]{DejaVu Sans}",
+        r"\setmonofont[Scale = MatchLowercase]{DejaVu Sans Mono}",
+        r"\usepackage{unicode-math}",
+        r"\setmathfont[Scale = MatchLowercase]{DejaVu Math TeX Gyre}", 
+        r"\usepackage{siunitx}",
+        r"\usepackage[version=3]{mhchem}"])}
+
+mpl.use("pgf")
+mpl.rcParams.update(pgf_with_latex)
+plt.style.use('dark_background')
+
 plt.rcParams["axes.grid"] = "False"
 
 # Sizes of specific parts
-plt.rcParams['axes.labelsize'] = 'large'
-plt.rcParams['axes.linewidth'] = 2
-plt.rcParams['xtick.major.pad'] = 7
-plt.rcParams['ytick.major.pad'] = 5
-plt.rcParams['xtick.labelsize'] = 'large'
-plt.rcParams['ytick.labelsize'] = 'large'
 plt.rcParams['lines.markersize'] = 10
 plt.rcParams['lines.markeredgewidth'] = 2
 plt.rcParams['lines.linewidth'] = 2
-plt.rcParams['xtick.major.size'] = 5
+
+plt.rcParams['axes.linewidth'] = 2
+plt.rcParams['axes.labelsize']= 0.75
+plt.rcParams['xtick.major.pad'] = 7
+plt.rcParams['ytick.major.pad'] = 7
+
+plt.rcParams['xtick.major.size'] = 7
 plt.rcParams['xtick.major.width'] = 2
-plt.rcParams['ytick.major.size'] = 5
+plt.rcParams['xtick.direction'] =  'in'
+plt.rcParams['xtick.top'] = True
+plt.rcParams['ytick.major.size'] = 7
 plt.rcParams['ytick.major.width'] = 2
-plt.rcParams['legend.fontsize'] = 'large'
-plt.rcParams['legend.frameon'] = False
-plt.rcParams['legend.labelspacing'] = 0.75
-# File properties and location
+plt.rcParams['ytick.direction'] =  'in'
+plt.rcParams['ytick.right'] = True
+
+plt.rcParams["legend.frameon"] = False
+plt.rcParams['font.size'] = 18
+plt.rcParams['axes.labelpad']= 7
+plt.rcParams['xtick.labelsize'] = 13
+plt.rcParams['ytick.labelsize'] = 13
+plt.rcParams['legend.fontsize'] = 15
+
+# figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
+figures = r'C:\Users\Jelle\Documents\TU jaar 6\KOH (aq) Project\Progress_meeting_2\figures'
+plt.rcParams['savefig.directory'] = figures
 # Done
 
 ###############################################################################
 
+###############################################################################
+
 path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
-folder = ['i_3']
+# path = '../../../RPBE_Production/MLMD/100ps_2/'
+# path = '../../../RPBE_Production/AIMD/10ps/'
+# folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
+folder = ['i_5']
 
 n_KOH = 1
 n_H2O = 55
 
-n_steps = 10000
-# n_steps = 10000
-MSDOH = np.zeros(n_steps)
-MSDK = np.zeros(n_steps)
 visc = np.zeros((len(folder), 2))
 reaction_rate = np.zeros(len(folder))
 press = np.zeros((len(folder), 2))
@@ -94,7 +152,7 @@ for i in range(len(folder)):
     d_KO[i] = r[np.argmax(KO[i, :])]
 
     # sanity checks
-    ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
+    # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
     press[i, :] = Traj.pressure(plotting=True, filter_width=2500, skip=100)
     e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=2500, skip=100)
     e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=2500, skip=100)
@@ -105,7 +163,7 @@ for i in range(len(folder)):
     msdK = Traj.windowed_MSD(loc_K, n_KOH)
     msdH2O = Traj.windowed_MSD(loc_H2O, n_H2O)
 
-    t = np.arange(n_steps)
+    # t = np.arange(len(Traj.t))
 
     # multiple window loglog
     plt.figure('multiple window loglog OH')
@@ -122,15 +180,34 @@ for i in range(len(folder)):
     plt.figure('OH index')
     plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
 
-    n = np.arange(start=100, stop=n_steps, step=25)
-    # n = np.arange(start=30000, stop=n_steps, step=75)
+    # n = np.arange(start=1000, stop=len(Traj.t), step=100)
+    n = np.arange(start=10000, stop=len(Traj.t), step=100)
     t_test = Traj.t[n]
     MSD_test = msdOH[n]
-    diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=False)
+    diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
     MSD_test = msdK[n]
-    diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=False)
+    diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
     MSD_test = msdH2O[n]
-    diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=False)
+    diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
+
+    plt.figure('Number OH-')
+    plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
+
+    plt.figure('Number H3O+')
+    plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
+
+    plt.figure('Number H2O')
+    plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
+
+    plt.figure('xyz OH-')
+    plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 0], label='x')
+    plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 1], label='y')
+    plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 2], label='z')
+
+    plt.figure('stepsize')
+    step = Traj.O_loc_stored[1:, :, :] - Traj.O_loc_stored[:-1, :, :]
+    dis = np.linalg.norm(step, axis=2)
+    plt.plot(Traj.t[:-1]*1e12, dis, label=folder[i])
 
 
 # rdfs= np.array([r, np.mean(OO, axis=0), np.std(OO, axis=0),
@@ -138,73 +215,120 @@ for i in range(len(folder)):
 #                 np.mean(KO, axis=0), np.std(KO, axis=0)])
 # np.save(path+'rdfs.npy', rdfs)
 
+t_max = int(len(Traj.t)*1e-3)
 plt.figure('pressure')
-plt.xlabel('time in/[ps]')
-plt.ylabel('Pressure/[bar]')
-plt.xlim(0, 10)
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$P$/[\si{\bar}]')
+plt.xlim(0, t_max)
 plt.legend()
+plt.savefig(figures + '/pressure')
 
 plt.figure('kinetic energy')
-plt.xlabel('time in/[ps]')
-plt.ylabel('kinetic energy/[eV]')
-plt.xlim(0, 10)
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{kin}$/[\si{\eV}]')
+plt.xlim(0, t_max)
 plt.legend()
+plt.savefig(figures + '/kinetic energy')
 
 plt.figure('potential energy')
-plt.xlabel('time in/[ps]')
-plt.ylabel('potential energy/[eV]')
-plt.xlim(0, 10)
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{pot}$/[\si{\eV}]')
+plt.xlim(0, t_max)
 plt.legend()
+plt.savefig(figures + '/potential energy')
 
 plt.figure('total energy')
-plt.xlabel('time in/[ps]')
-plt.ylabel('total energy/[eV]')
-plt.xlim(0, 10)
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{tot}$/[\si{\eV}]')
+plt.xlim(0, t_max)
 plt.legend()
+plt.savefig(figures + '/total energy')
 
 plt.figure('temperature')
-plt.xlabel('time in/[ps]')
-plt.ylabel('temperature/[K]')
-plt.xlim(0, 10)
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$T$/[\si{\K}]')
+plt.xlim(0, t_max)
 plt.legend()
+plt.savefig(figures + '/temperature')
 
 plt.figure('BEEF')
 plt.xlabel('time in/[ps]')
 plt.ylabel('force/[eV/angstrom]')
-plt.xlim(0, 10)
+plt.xlim(0, t_max)
 plt.ylim(0, 0.15)
 plt.legend()
+plt.savefig(figures + '/BEEF')
 
 plt.figure('BEES')
 plt.xlabel('time in/[ps]')
 plt.ylabel('stress/[bar]')
-plt.xlim(0, 10)
+plt.xlim(0, t_max)
 plt.legend()
+plt.savefig(figures + '/BEES')
 
 plt.figure('OH index')
-plt.xlabel('time in/[ps]')
-plt.ylabel('Index of oxygen of OH-')
-plt.xlim(0, 10)
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'Index of oxygen of OH-')
+plt.xlim(0, t_max)
 plt.ylim(-5, 60)
 plt.legend()
+plt.savefig(figures + '/OH_idex')
 
 # multiple window loglog
 plt.figure('multiple window loglog OH')
 plt.legend()
-plt.xlabel('time in/[ps]')
-plt.ylabel('MSD/[A2]')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
+plt.savefig(figures + '/MSD OH')
 
 # multiple window loglog
 plt.figure('multiple window loglog K')
 plt.legend()
-plt.xlabel('time in/[ps]')
-plt.ylabel('MSD/[A2]')
+plt.xlabel(r'time in/[ps]')
+plt.ylabel(r'$MSD_\text{\ce{K+}}$/[\si{\angstrom\squared}]')
+plt.savefig(figures + '/MSD K')
 
 # multiple window loglog
 plt.figure('multiple window loglog H2O')
 plt.legend()
-plt.xlabel('time in/[ps]')
-plt.ylabel('MSD/[A2]')
+plt.xlabel(r'time in/[ps]')
+plt.ylabel(r'$MSD_\text{\ce{H2O}}$/[\si{\angstrom\squared}]')
+plt.savefig(figures + '/MSD H2O')
+
+plt.figure('Number OH-')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$N_\text{\ce{OH-}}$')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(figures + '/N_OH')
+
+plt.figure('Number H3O+')
+plt.legend()
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$N_\text{\ce{H3O+}}$')
+plt.xlim(0, t_max)
+plt.savefig(figures + '/N_H3O')
+
+plt.figure('Number H2O')
+plt.legend()
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$N_\text{\ce{H2O}}$')
+plt.xlim(0, t_max)
+plt.savefig(figures + '/N_H2O')
+
+plt.figure('xyz OH-')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'position/[\si{\angstrom}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(figures + '/trajectory')
+
+plt.figure('stepsize')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'stepsize/[\si{\angstrom}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(figures + '/stepsize')
 
 p = np.sum(unumpy.uarray(press[:, 0], press[:, 1]))/5
 t = np.sum(unumpy.uarray(Temp[:, 0], Temp[:, 1]))/5
@@ -221,7 +345,7 @@ t_r = unc.ufloat(np.mean(reaction_rate), np.std(reaction_rate)/np.sqrt(5))
 t_r = 1/(1000*t_r)
 
 viscosity = unc.ufloat(np.mean(visc[:, 0]),
-                       np.std(visc[:, 1])/np.sqrt(5))
+                        np.std(visc[:, 1])/np.sqrt(5))
 D_cor = co.k*t*2.837298/(6*np.pi*Traj.L*1e-10*viscosity)
 D_H2O = unc.ufloat(np.mean(diff_H2O), np.std(diff_H2O)/np.sqrt(5)) + D_cor
 D_OH = unc.ufloat(np.mean(diff_OH), np.std(diff_OH)/np.sqrt(5)) + D_cor

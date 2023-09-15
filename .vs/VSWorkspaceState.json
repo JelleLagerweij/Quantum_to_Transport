@@ -3,9 +3,10 @@
     "",
     "\\post-processing scripts",
     "\\post-processing scripts\\KOH systems",
-    "\\post-processing scripts\\KOH systems\\Old algorithm",
+    "\\post-processing scripts\\KOH systems\\Old algorithm 1",
+    "\\post-processing scripts\\KOH systems\\Old algorithm 2",
     "\\post-processing scripts\\KOH systems\\VASP example output i_1"
   ],
-  "SelectedNode": "\\post-processing scripts\\KOH systems\\Old algorithm",
+  "SelectedNode": "\\post-processing scripts\\KOH systems\\VASP example output i_1",
   "PreviewInSolutionExplorer": false
 }

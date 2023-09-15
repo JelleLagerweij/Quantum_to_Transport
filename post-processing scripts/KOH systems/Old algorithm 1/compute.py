@@ -48,7 +48,7 @@ plt.rcParams['axes.grid'] = True
 ###############################################################################
 
 path = '../../../../RPBE_Production/MLMD/100ps_Exp_Density/'
-folder = ['i_1', 'i_2', 'i_3', 'i_4']
+folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 
 n_KOH = 1
 n_H2O = 55
@@ -123,7 +123,7 @@ for i in range(len(folder)):
     plt.figure('OH index')
     plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
 
-    n = np.arange(start=100, stop=Traj.n_max, step=125)
+    n = np.arange(start=30000, stop=len(Traj.t), step=125)
     t_test = Traj.t[n]
     MSD_test = msdOH[n]
     diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=False)

@@ -16,6 +16,7 @@ import freud
 from py4vasp import Calculation
 import uncertainties as unc
 
+
 class Prot_Hop:
     """Postprocesses class for NVT VASP simulations of aqueous KOH."""
 
@@ -89,7 +90,7 @@ class Prot_Hop:
         self.K = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K)
 
         # Calculating the number of OH-
-        self.n_OH = -(self.N_H - 2*self.N_O)
+        self.n_OH = -(self.N_H - 2*self.N_O) 
         self.shift = np.zeros((self.n_OH, 1, 3))
         self.n_list = 10  # number of Hydrogens in the neighbor list
 
@@ -97,15 +98,17 @@ class Prot_Hop:
         self.pos = self.L*data['positions']
         self.n_max = len(self.pos[:, 0, 0])
         self.t = np.arange(self.n_max)*self.dt
-        self.find_O_i(0)
-
-        self.stress = self.df.stress[:].to_dict()['stress']
-        self.energy  = self.df.energy[:].to_dict()
         
         # number of OH-, H2O and H3O+ counter
         self.N_OH = np.zeros(self.n_max)
         self.N_H2O = np.zeros(self.n_max)
         self.N_H3O = np.zeros(self.n_max)
+        
+        # find initial OH- and other molecules
+        self.find_O_i(0)
+
+        self.stress = self.df.stress[:].to_dict()['stress']
+        self.energy  = self.df.energy[:].to_dict()
 
     def find_O_i(self, n):
         """
@@ -190,7 +193,7 @@ class Prot_Hop:
             startup = True
         else:
             startup = False
-            
+
         # Retrieve ALL particle positions.
         x = self.pos[n, :, :]
         if startup is False:
@@ -208,30 +211,33 @@ class Prot_Hop:
 
         # find number of OH-:
         O_i = np.where(counter_H_per_O == 1) + self.N_H
+        self.N_OH[n] = len(O_i.flatten())
         self.O_i = O_i.flatten()
+        if len(self.O_i) >= self.n_OH + 1:
+            dis = (x[self.O_i, :]-x[O_i_old, :]+self.L/2) % self.L-self.L/2
+            self.O_i = np.array([self.O_i[np.argmin((dis*dis).sum(axis=1))]])
+        elif len(self.O_i) < self.n_OH:
+            self.O_i = (np.where(counter_H_per_O == 0) + self.N_H).flatten()
+            # print(n, 'time', self.O_i, 'O radical?')
 
         # find number of H2O:
         O_i_H2O = np.where(counter_H_per_O == 2) + self.N_H
         self.O_i_H2O = O_i_H2O.flatten()
+        self.N_H2O[n] = len(self.O_i_H2O)
 
         # find number of H3O+
         O_i_H3O = np.where(counter_H_per_O == 3) + self.N_H
         self.O_i_H3O = O_i_H3O.flatten()
-
-        # Create neighborlist with this data as well. Do it here as there is
-        # no need to compute distances again.
-        d_sq = d_sq[:, self.O_i-self.N_H].flatten()
-        self.H_n = np.sort(np.argpartition(d_sq, self.n_list)[:self.n_list])
-        self.n_list_c = 0  # reset counter for neighborlist updating
+        self.N_H3O[n] = len(self.O_i_H3O)
 
         if startup is False:
             # Check which is the correct image of the particle that is reacted
             # with And update the number of boundary passes that it has had.
             # compute true displacement
-            dis = (x[O_i, :] - x[O_i_old, :] + self.L/2) % self.L - self.L/2
+            dis = (x[self.O_i, :] - x[O_i_old, :] + self.L/2) % self.L - self.L/2
             real_loc = x[O_i_old, :] + dis
-            self.shift += real_loc - x[O_i, :]
-            self.x_O_i = x[O_i, :]
+            self.shift += real_loc - x[self.O_i, :]
+            self.x_O_i = x[self.O_i, :]
 
     def track_OH(self, N_neighbor=100, rdf=False):
         """
@@ -258,20 +264,16 @@ class Prot_Hop:
         counter = 0  # reaction counter
         # Run the big loop
         for j in range(self.n_max):
-            if j == 22391:
-                j = j
             self.x_O_i = self.pos[j, self.O_i, :]  # old position for PBC
             self.find_O_i(j)
             self.O_i_stored[j] = self.O_i
             self.O_loc_stored[j, :, :] = self.x_O_i + self.shift
 
-            self.N_OH[j] = len(self.O_i)
-            self.N_H2O[j] = len(self.O_i_H2O)
-            self.N_H3O[j] = len(self.O_i_H3O)
-
+            # The reaction counter
             if self.O_i != self.O_i_stored[j-1]:
                 counter += 1
 
+            # Storing rdf outputs if needed
             if rdf is not False and j % 10 == 0:
                 self.rdf_compute(j, rdf)
 
@@ -311,6 +313,7 @@ class Prot_Hop:
         rescale2 = (self.N_O - self.n_OH)*(self.N_O - self.n_OH - 1)
         self.g_OO += (self.L**3*n_OO)/(rescale1*rescale2*self.n_max/10)
 
+
         # Then the O_H O_w interactions
         d_HO = d[self.O_i, self.O[0]:self.O[-1]+1]
         d_HO = np.delete(d_HO, self.O_i-self.O[0], axis=1)
@@ -326,7 +329,7 @@ class Prot_Hop:
         rescale1 = 4*np.pi*(self.r**2)*(self.r[1]-self.r[0])  # 4pir**2 dr part
         rescale2 = (self.N_O - self.n_OH)*(self.N_K)
         self.g_KO += (self.L**3*n_KO)/(rescale1*rescale2*self.n_max/10)
-        
+
     def rdf(self, interpol=False, plotting=False, r_end=[3.4, 3.2, 3.5]):
         if interpol is False:
             r_small = self.r
@@ -382,15 +385,14 @@ class Prot_Hop:
             Returns the xyz postions of all K ions at all timesteps. The
             output shaped as, n_steps, N_K, 3, is very suitable for the msd
             code.
-
-        """        
+        """
         # self.K_loc_stored = np.zeros((self.n_max, self.n_OH, 3))
         # for j in range(self.n_max):
         #     self.K_loc_stored[j, :, :] = self.read_XDATCAR(j, index=self.K)
         self.K_loc_stored = self.pos[:, self.K, :]
         K_loc = np.copy(self.K_loc_stored)
         return K_loc
-    
+
     def track_H2O(self, index):
         """
         Retrieves the locations of the K ions at all timepoints. It only slices
@@ -404,56 +406,24 @@ class Prot_Hop:
             code.
 
         """
-        O_loc_stored = self.pos[:, self.O, :]
+        O_stored = self.pos[:, self.O, :]
         index = (index - self.O[0]).astype(int)  # the atomic number O of OH-
-        indexes = np.r_[0:index[0], index[0]+1:self.N_O-self.n_OH]  # the other
-        indexes = indexes.astype(int)
+        indexes = np.arange(0, self.N_O)
+        indexes = np.delete(indexes, index[0])
         index_old = index[0]
-        loc = np.zeros((self.n_max, self.N_O-self.n_OH - 1, 3))
+        loc = np.zeros((self.n_max, self.N_O-self.n_OH, 3))
+        shifts = np.zeros((self.N_O-self.n_OH, 3))
         for i in range(self.n_max):
             if index[i] == index_old:
-                loc[i, :, :] = O_loc_stored[i, indexes, :]
+                loc[i, :, :] = O_stored[i, indexes, :] + self.L*shifts
             else:
                 indexes[np.where(indexes == index[i])] = index_old
-                loc[i, :, :] = O_loc_stored[i, indexes, :]
+                shift = np.round((O_stored[i, index[i], :] -
+                                  O_stored[i, index_old, :])/self.L)
+                shifts[np.where(indexes == index_old)] += shift
+                loc[i, :, :] = O_stored[i, indexes, :] + self.L*shifts
                 index_old = index[i]
         return loc
-
-    def single_MSD(self):
-        """
-        Depreciated, self made single window MSD code.
-
-        The MSD of a single atom and its position is returned.
-
-        Returns
-        -------
-        d_sq : numpy array
-            MSD per timestep from single window.
-
-        """
-        rel_r = (self.O_loc_stored - self.O_loc_stored[0, :])
-        d_sq = np.einsum('ij, ij -> i', rel_r, rel_r)
-        return d_sq
-
-    def single_MSD_freud(self):
-        """
-        Single window MSD code refering the freud package.
-
-        The MSD of a multiple atoms and their position is returned.
-
-        Returns
-        -------
-        calculation.msd : numpy array
-            MSD per timestep from single window.
-
-        """
-        # reshape the locations
-        loc = self.O_loc_stored
-        msd = freud.msd.MSD(mode='direct')
-
-        # compute MSD
-        calculation = msd.compute(loc)
-        return calculation.msd
 
     def windowed_MSD(self, loc_array, Npart):
         """
@@ -528,7 +498,7 @@ class Prot_Hop:
                 t = self.t
             else:
                 t = self.t[:-padding]
-            
+
             if cubicspline is not False:
                 steps = len(data)*cubicspline
                 t_small = np.linspace(0, steps, num=steps)*self.dt/cubicspline
@@ -551,9 +521,9 @@ class Prot_Hop:
     def diffusion(self, MSD_in, N_specie, t=False, m=False, plotting=False):
         # Settings for the margins and fit method.
         margin = 0.005  # cut away range at left and right side
-        Minc = 150  # minimum number of points included in the fit
+        Minc = 50  # minimum number of points included in the fit
         Mmax = 200  # maximum number of points included in the fit
-        er_max = 0.2  # maximum allowed error
+        er_max = 0.1  # maximum allowed error
 
         if t is False:
             t = self.t
