@@ -48,56 +48,56 @@ marker = ['o', 'x', '^', '>']
 # # Done
 
 # Presentations
-# pgf_with_latex = {                      # setup matplotlib to use latex for output
-#     "pgf.texsystem": "lualatex",        # change this if using xetex or lautex
-#     "text.usetex": True,                # use LaTeX to write all text
-#     "font.family": 'serif',
-#     "pgf.rcfonts": False,    # don't setup fonts from rc parameters
-#     "pgf.preamble": "\n".join([ # plots will use this preamble
-#         r"\RequirePackage{amsmath}",
-#         r"\RequirePackage{fontspec}",   # unicode math setup
-#         r"\setmainfont[Scale = MatchLowercase]{DejaVu Serif}",
-#         r"\setsansfont[Scale = MatchLowercase]{DejaVu Sans}",
-#         r"\setmonofont[Scale = MatchLowercase]{DejaVu Sans Mono}",
-#         r"\usepackage{unicode-math}",
-#         r"\setmathfont[Scale = MatchLowercase]{DejaVu Math TeX Gyre}", 
-#         r"\usepackage{siunitx}",
-#         r"\usepackage[version=3]{mhchem}"])}
+pgf_with_latex = {                      # setup matplotlib to use latex for output
+    "pgf.texsystem": "lualatex",        # change this if using xetex or lautex
+    "text.usetex": True,                # use LaTeX to write all text
+    "font.family": 'serif',
+    "pgf.rcfonts": False,    # don't setup fonts from rc parameters
+    "pgf.preamble": "\n".join([ # plots will use this preamble
+        r"\RequirePackage{amsmath}",
+        r"\RequirePackage{fontspec}",   # unicode math setup
+        r"\setmainfont[Scale = MatchLowercase]{DejaVu Serif}",
+        r"\setsansfont[Scale = MatchLowercase]{DejaVu Sans}",
+        r"\setmonofont[Scale = MatchLowercase]{DejaVu Sans Mono}",
+        r"\usepackage{unicode-math}",
+        r"\setmathfont[Scale = MatchLowercase]{DejaVu Math TeX Gyre}", 
+        r"\usepackage{siunitx}",
+        r"\usepackage[version=3]{mhchem}"])}
 
-# mpl.use("pgf")
-# mpl.rcParams.update(pgf_with_latex)
-# plt.style.use('dark_background')
+mpl.use("pgf")
+mpl.rcParams.update(pgf_with_latex)
+plt.style.use('dark_background')
 
-# plt.rcParams["axes.grid"] = "False"
+plt.rcParams["axes.grid"] = "False"
 
-# # Sizes of specific parts
-# plt.rcParams['lines.markersize'] = 10
-# plt.rcParams['lines.markeredgewidth'] = 2
-# plt.rcParams['lines.linewidth'] = 2
+# Sizes of specific parts
+plt.rcParams['lines.markersize'] = 10
+plt.rcParams['lines.markeredgewidth'] = 2
+plt.rcParams['lines.linewidth'] = 2
 
-# plt.rcParams['axes.linewidth'] = 2
-# plt.rcParams['axes.labelsize']= 0.75
-# plt.rcParams['xtick.major.pad'] = 7
-# plt.rcParams['ytick.major.pad'] = 7
+plt.rcParams['axes.linewidth'] = 2
+plt.rcParams['axes.labelsize']= 0.75
+plt.rcParams['xtick.major.pad'] = 7
+plt.rcParams['ytick.major.pad'] = 7
 
-# plt.rcParams['xtick.major.size'] = 7
-# plt.rcParams['xtick.major.width'] = 2
-# plt.rcParams['xtick.direction'] =  'in'
-# plt.rcParams['xtick.top'] = True
-# plt.rcParams['ytick.major.size'] = 7
-# plt.rcParams['ytick.major.width'] = 2
-# plt.rcParams['ytick.direction'] =  'in'
-# plt.rcParams['ytick.right'] = True
+plt.rcParams['xtick.major.size'] = 7
+plt.rcParams['xtick.major.width'] = 2
+plt.rcParams['xtick.direction'] =  'in'
+plt.rcParams['xtick.top'] = True
+plt.rcParams['ytick.major.size'] = 7
+plt.rcParams['ytick.major.width'] = 2
+plt.rcParams['ytick.direction'] =  'in'
+plt.rcParams['ytick.right'] = True
 
-# plt.rcParams["legend.frameon"] = False
-# plt.rcParams['font.size'] = 18
-# plt.rcParams['axes.labelpad']= 7
-# plt.rcParams['xtick.labelsize'] = 13
-# plt.rcParams['ytick.labelsize'] = 13
-# plt.rcParams['legend.fontsize'] = 15
+plt.rcParams["legend.frameon"] = False
+plt.rcParams['font.size'] = 18
+plt.rcParams['axes.labelpad']= 7
+plt.rcParams['xtick.labelsize'] = 13
+plt.rcParams['ytick.labelsize'] = 13
+plt.rcParams['legend.fontsize'] = 15
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
-figures = r'C:\Users\Jelle\Documents\TU jaar 6\KOH (aq) Project\Progress_meeting_2\figures'
+figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_2\figures'
 # plt.rcParams['savefig.directory'] = figures
 # Done
 
@@ -181,14 +181,14 @@ for i in range(len(folder)):
     plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
 
     # n = np.arange(start=1000, stop=len(Traj.t), step=100)
-    n = np.arange(start=10000, stop=len(Traj.t), step=100)
-    t_test = Traj.t[n]
-    MSD_test = msdOH[n]
-    diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
-    MSD_test = msdK[n]
-    diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
-    MSD_test = msdH2O[n]
-    diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
+    # n = np.arange(start=10000, stop=len(Traj.t), step=100)
+    # t_test = Traj.t[n]
+    # MSD_test = msdOH[n]
+    # diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    # MSD_test = msdK[n]
+    # diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    # MSD_test = msdH2O[n]
+    # diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
 
     plt.figure('Number OH-')
     plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
