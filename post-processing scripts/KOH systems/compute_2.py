@@ -115,7 +115,6 @@ n_KOH = 1
 n_H2O = 55
 
 visc = np.zeros((len(folder), 2))
-reaction_rate = np.zeros(len(folder))
 press = np.zeros((len(folder), 2))
 e_kin = np.zeros((len(folder), 2))
 e_pot = np.zeros((len(folder), 2))
@@ -136,10 +135,7 @@ n_KO = np.zeros(len(folder))
 
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
-    reaction_rate[i], index, loc_OH = Traj.track_OH(rdf=[32, 2, 5])
-    loc_K = Traj.track_K()
-    loc_H2O = Traj.track_H2O(index)
-
+    index, loc_OH, loc_K, loc_H2O = Traj.loading()
     visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
 
     r, rdfs, n_conf = Traj.rdf(interpol=64, plotting=False,
@@ -341,8 +337,6 @@ n_ko = unc.ufloat(np.mean(n_KO), np.std(n_KO)/np.sqrt(5))
 d_oo = unc.ufloat(np.mean(d_OO), np.std(d_OO)/np.sqrt(5))
 d_ho = unc.ufloat(np.mean(d_HO), np.std(d_HO)/np.sqrt(5))
 d_ko = unc.ufloat(np.mean(d_KO), np.std(d_KO)/np.sqrt(5))
-t_r = unc.ufloat(np.mean(reaction_rate), np.std(reaction_rate)/np.sqrt(5)) 
-t_r = 1/(1000*t_r)
 
 viscosity = unc.ufloat(np.mean(visc[:, 0]),
                         np.std(visc[:, 1])/np.sqrt(5))
@@ -365,7 +359,6 @@ print('E_kin in eV', e_kin)
 print('E_pot in eV', e_pot)
 print('temperature in K =', t)
 print('pressure in bar =', p)
-print('reaction time in ps =', t_r)
 
 print('viscosity in mPas (or cP) =', viscosity*1e3)
 print('D_s correction in 10^-9 m^2/s =', D_cor*1e9)

@@ -834,6 +834,14 @@ class Prot_Hop:
 
         return temperature
 
+    def loading(self):
+        loaded = np.load(self.folder + '/traj.npz')
+        index = loaded['index']
+        loc_OH = loaded['loc_OH']
+        loc_K = loaded['loc_K']
+        loc_H2O = loaded['loc_H2O']
+        return index, loc_OH, loc_K, loc_H2O
+
 
 def filter(signal, width):
     """
