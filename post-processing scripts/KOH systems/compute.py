@@ -66,7 +66,7 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 
 mpl.use("pgf")
 mpl.rcParams.update(pgf_with_latex)
-plt.style.use('dark_background')
+# plt.style.use('default')
 
 plt.rcParams["axes.grid"] = "False"
 
