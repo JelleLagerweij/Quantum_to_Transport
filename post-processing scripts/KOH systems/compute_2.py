@@ -136,6 +136,7 @@ n_KO = np.zeros(len(folder))
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
     index, loc_OH, loc_K, loc_H2O = Traj.loading()
+
     visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
 
     r, rdfs, n_conf = Traj.rdf(interpol=64, plotting=False,

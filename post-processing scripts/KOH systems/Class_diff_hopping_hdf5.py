@@ -840,6 +840,10 @@ class Prot_Hop:
         loc_OH = loaded['loc_OH']
         loc_K = loaded['loc_K']
         loc_H2O = loaded['loc_H2O']
+        self.r = loaded['r']
+        self.g_OO=loaded['g_OO']
+        self.g_HO=loaded['g_HO']
+        self.g_KO=loaded['g_KO']
         return index, loc_OH, loc_K, loc_H2O
 
 
