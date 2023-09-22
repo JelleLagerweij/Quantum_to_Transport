@@ -21,5 +21,12 @@ for i in range(len(folder)):
     reaction_rate, index, loc_OH = Traj.track_OH(rdf=[32, 2, 5])
     loc_K = Traj.track_K()
     loc_H2O = Traj.track_H2O(index)
+
+    r = Traj.r
+    g_OO = Traj.g_OO
+    g_HO = Traj.g_HO
+    g_KO = Traj.g_KO
+
     
-    np.savez_compressed(path+folder[i]+'/traj', index=index, loc_OH=loc_OH, loc_K=loc_K, loc_H2O=loc_H2O)
+    np.savez_compressed(path+folder[i]+'/traj', index=index, loc_OH=loc_OH, loc_K=loc_K,
+                        loc_H2O=loc_H2O, r=r, g_OO=g_OO, g_HO=g_HO, g_KO=g_KO)
