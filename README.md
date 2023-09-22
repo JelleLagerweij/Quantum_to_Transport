@@ -25,3 +25,5 @@ Additional instructions are provided in the subfolders of the post-processing sc
 ## Pure water
 In the subdirectory with this name, the simulation settings and input files of a system of 64 waters molecule is availlable.
 Four different INCARS are provided, mixing AIMD and MLMD as well as RPPBE-D3 and rVV10 r2SCAN.
+
+This is the old version, which is slow compared to the improved implementation
