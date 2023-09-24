@@ -838,6 +838,7 @@ class Prot_Hop:
         loaded = np.load(self.folder + '/traj.npz')
         index = loaded['index']
         loc_OH = loaded['loc_OH']
+        self.O_loc_stored = loc_OH
         loc_K = loaded['loc_K']
         loc_H2O = loaded['loc_H2O']
         self.r = loaded['r']
