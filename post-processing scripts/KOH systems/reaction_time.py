@@ -110,11 +110,11 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/100ps_2/',
         '../../../RPBE_Production/MLMD/100ps_Exp_Density/']
 path_short = [r'AIMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
-              r'AIMD \SI{100}{\ps} $\rho_\text{exp}$']
+              r'MLMD \SI{100}{\ps} $\rho_\text{exp}$']
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 
-n_bins = 1000
-length = 1000
+n_bins = 5000
+length = 10000
 
 for j in range(len(path)):
     hists_s = np.zeros(n_bins)
@@ -133,4 +133,5 @@ plt.figure('reaction_spacing')
 # plt.ylabel(r'probability/[-]')
 plt.xlabel('time')
 plt.legend()
-plt.savefig(figures + '/reaction_spacing')
+plt.xlim(0, 0.1)
+plt.savefig(figures + '/reaction_spacing3')
