@@ -112,13 +112,15 @@ path_short = [r'AIMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
               r'AIMD \SI{100}{\ps} $\rho_\text{exp}$']
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 
-hists_s = np.zeros(100)
+n_bins = 100
+range = 500
 
 for j in range(len(path)):
+    hists_s = np.zeros(n_bins)
     for i in range(len(folder)):
         Traj = hop.Prot_Hop(path[j]+folder[i])
         index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
-        hist, bins = Traj.react_time(plotting=False, n_bins=100, range=500)
+        hist, bins = Traj.react_time(plotting=False, n_bins=n_bins, range=range)
         hists_s += hist/len(folder)
 
     plt.figure('reaction_spacing')

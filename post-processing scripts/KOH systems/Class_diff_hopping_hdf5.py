@@ -856,7 +856,7 @@ class Prot_Hop:
             # find run lengths
             length = np.diff(np.append(run_starts, n))
         
-        hist, bin_edges = np.histogram(length, bins=n_bins, range=(0, range), density=False)
+        hist, bin_edges = np.histogram(length, bins=n_bins, range=(0, range), density=True)
         bins = self.dt*1e12*(bin_edges[:-1] + bin_edges[1:])/2  # get the centre of the bins
 
         if plotting is True:
