@@ -62,7 +62,8 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
         r"\usepackage{unicode-math}",
         r"\setmathfont[Scale = MatchLowercase]{DejaVu Math TeX Gyre}", 
         r"\usepackage{siunitx}",
-        r"\usepackage[version=3]{mhchem}"])}
+        r"\usepackage[version=3]{mhchem}"]),
+    'font.size': 18}
 
 mpl.use("pgf")
 mpl.rcParams.update(pgf_with_latex)
@@ -90,7 +91,7 @@ plt.rcParams['ytick.direction'] =  'in'
 plt.rcParams['ytick.right'] = True
 
 plt.rcParams["legend.frameon"] = False
-plt.rcParams['font.size'] = 18
+# plt.rcParams['font.size'] = 18
 plt.rcParams['axes.labelpad']= 7
 plt.rcParams['xtick.labelsize'] = 13
 plt.rcParams['ytick.labelsize'] = 13
@@ -112,15 +113,15 @@ path_short = [r'AIMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
               r'AIMD \SI{100}{\ps} $\rho_\text{exp}$']
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 
-n_bins = 100
-range = 500
+n_bins = 1000
+length = 1000
 
 for j in range(len(path)):
     hists_s = np.zeros(n_bins)
     for i in range(len(folder)):
         Traj = hop.Prot_Hop(path[j]+folder[i])
         index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
-        hist, bins = Traj.react_time(plotting=False, n_bins=n_bins, range=range)
+        hist, bins = Traj.react_time(plotting=False, n_bins=n_bins, range=length)
         hists_s += hist/len(folder)
 
     plt.figure('reaction_spacing')
@@ -128,7 +129,8 @@ for j in range(len(path)):
 
 plt.figure('reaction_spacing')
 #plt.plot(bins, hists_s, label='average')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'probability/[-]')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'probability/[-]')
+plt.xlabel('time')
 plt.legend()
 plt.savefig(figures + '/reaction_spacing')
