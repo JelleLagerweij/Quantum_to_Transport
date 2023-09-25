@@ -97,7 +97,7 @@ plt.rcParams['ytick.labelsize'] = 13
 plt.rcParams['legend.fontsize'] = 15
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
-figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_2\figures'
+figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_3\figures'
 # plt.rcParams['savefig.directory'] = figures
 # Done
 
@@ -105,9 +105,9 @@ figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_
 
 ###############################################################################
 
-# path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
-path = '../../../RPBE_Production/MLMD/100ps_2/'
-# path = '../../../RPBE_Production/AIMD/10ps/'
+path = ['../../../RPBE_Production/AIMD/10ps/',
+        '../../../RPBE_Production/MLMD/100ps_2/',
+        '../../../RPBE_Production/MLMD/100ps_Exp_Density/']
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 # folder = ['i_1']
 
@@ -138,7 +138,7 @@ for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
     index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
     hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
-    hists_s += hist
+    hists_s += hist/len(folder)
     
 
     # visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
