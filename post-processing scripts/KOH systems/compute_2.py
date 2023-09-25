@@ -106,8 +106,8 @@ figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_
 ###############################################################################
 
 # path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
-# path = '../../../RPBE_Production/MLMD/100ps_2/'
-path = '../../../RPBE_Production/AIMD/10ps/'
+path = '../../../RPBE_Production/MLMD/100ps_2/'
+# path = '../../../RPBE_Production/AIMD/10ps/'
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 # folder = ['i_1']
 
@@ -132,11 +132,14 @@ d_KO = np.zeros(len(folder))
 n_OO = np.zeros(len(folder))
 n_HO = np.zeros(len(folder))
 n_KO = np.zeros(len(folder))
+hists_s = np.zeros(100)
 
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
     index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
-    hist, bins = Traj.react_time(plotting=True, n_bins=50, range=500)
+    hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
+    hists_s += hist
+    
 
     # visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
 
@@ -329,6 +332,7 @@ for i in range(len(folder)):
 # plt.savefig(figures + '/stepsize')
 
 plt.figure('reaction_spacing')
+plt.plot(bins, hists_s, label='average')
 plt.xlabel(r'$t$/[\si{\ps}]')
 plt.ylabel(r'probability/[-]')
 plt.legend()

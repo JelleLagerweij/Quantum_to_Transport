@@ -11,8 +11,8 @@ import numpy as np
 ###############################################################################
 
 # path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
-# path = '../../../RPBE_Production/MLMD/100ps_2/'
-path = '../../../RPBE_Production/AIMD/10ps/'
+path = '../../../RPBE_Production/MLMD/100ps_2/'
+# path = '../../../RPBE_Production/AIMD/10ps/'
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 # folder = ['i_1']
 
