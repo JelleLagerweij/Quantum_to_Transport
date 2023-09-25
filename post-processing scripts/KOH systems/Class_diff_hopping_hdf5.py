@@ -833,6 +833,57 @@ class Prot_Hop:
             plt.plot(self.t*1e12, temp, label=string)
 
         return temperature
+    
+    def react_time(self, plotting=False, n_bins=200, range=1000):
+        x = self.index
+        # ensure array
+        x = np.asanyarray(x)
+        if x.ndim != 1:
+            raise ValueError('only 1D array supported')
+        n = x.shape[0]
+
+        # handle empty array
+        if n == 0:
+            return np.array([]), np.array([]), np.array([])
+
+        else:
+            # find run starts
+            loc_run_start = np.empty(n, dtype=bool)
+            loc_run_start[0] = True
+            np.not_equal(x[:-1], x[1:], out=loc_run_start[1:])
+            run_starts = np.nonzero(loc_run_start)[0]
+
+            # find run lengths
+            length = np.diff(np.append(run_starts, n))
+        
+        hist, bin_edges = np.histogram(length, bins=n_bins, range=(0, range), density=True)
+        bins = self.dt*1e12*(bin_edges[:-1] + bin_edges[1:])/2  # get the centre of the bins
+
+        if plotting is True:
+            # set labels of plot
+            i = re.findall(r'\d+', self.folder)[-1]
+            string = ' run ' + i
+
+            plt.figure('reaction_spacing')
+            plt.plot(bins, hist, label=string)
+        return hist, bins
+
+        
+
+
+    def loading(self):
+        loaded = np.load(self.folder + '/traj.npz')
+        index = loaded['index']
+        self.index = index
+        loc_OH = loaded['loc_OH']
+        self.O_loc_stored = loc_OH
+        loc_K = loaded['loc_K']
+        loc_H2O = loaded['loc_H2O']
+        self.r = loaded['r']
+        self.g_OO=loaded['g_OO']
+        self.g_HO=loaded['g_HO']
+        self.g_KO=loaded['g_KO']
+        return index, loc_OH, loc_K, loc_H2O
 
 
 def filter(signal, width):
