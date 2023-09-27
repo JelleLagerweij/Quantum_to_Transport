@@ -1,6 +1,6 @@
 # API reference
 
-## Prot_Hop
+## example code
 
 ```{eval-rst}
 .. automodule:: example
