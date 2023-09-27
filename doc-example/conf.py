@@ -16,7 +16,7 @@ release = '0.3'
 # this is a trick to make sphinx find the modules in the parent directory
 import os
 import sys
-sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath("/../."))
 
 extensions = ['myst_parser', "sphinx.ext.autodoc"]
 
