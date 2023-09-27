@@ -12,3 +12,4 @@ Welcome to Quantum to Transport's documentation!
 
    some-feature.md
    another-feature.md
+   api.md
