@@ -138,6 +138,7 @@ for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
     index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
     hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
+    # %%
     hists_s += hist/len(folder)
     
 
