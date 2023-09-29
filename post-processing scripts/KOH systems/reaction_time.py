@@ -77,7 +77,7 @@ plt.rcParams['lines.markeredgewidth'] = 2
 plt.rcParams['lines.linewidth'] = 2
 
 plt.rcParams['axes.linewidth'] = 2
-plt.rcParams['axes.labelsize']= 22
+plt.rcParams['axes.labelpad']= 7
 plt.rcParams['xtick.major.pad'] = 7
 plt.rcParams['ytick.major.pad'] = 7
 
@@ -91,14 +91,14 @@ plt.rcParams['ytick.direction'] =  'in'
 plt.rcParams['ytick.right'] = True
 
 plt.rcParams["legend.frameon"] = False
-plt.rcParams['font.size'] = 25
-plt.rcParams['axes.labelpad']= 7
-plt.rcParams['xtick.labelsize'] = 13
-plt.rcParams['ytick.labelsize'] = 13
-plt.rcParams['legend.fontsize'] = 15
+plt.rcParams['font.size'] = 23
+plt.rcParams['axes.labelsize']= 23
+plt.rcParams['xtick.labelsize'] = 20
+plt.rcParams['ytick.labelsize'] = 20
+plt.rcParams['legend.fontsize'] = 20
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
-figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_3\figures'
+figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_4\figures'
 # plt.rcParams['savefig.directory'] = figures
 # Done
 
@@ -143,4 +143,6 @@ plt.xlabel(r'$t$/[\si{\ps}]')
 plt.ylabel(r'probability/[-]')
 plt.legend()
 plt.xlim(0, 0.1)
+plt.ylim(0, 0.055)
+plt.tight_layout()
 plt.savefig(figures + '/reaction_spacing3')
