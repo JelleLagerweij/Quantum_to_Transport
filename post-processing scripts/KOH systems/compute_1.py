@@ -12,7 +12,7 @@ import numpy as np
 
 # path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 # path = '../../../RPBE_Production/MLMD/100ps_2/'
-path = '../../../RPBE_Production/MLMD/10ns/'
+path = '../../../RPBE_Production/AIMD/10ns/'
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 # folder = ['i_1']
 
@@ -30,3 +30,4 @@ for i in range(len(folder)):
     
     np.savez_compressed(path+folder[i]+'/traj', index=index, loc_OH=loc_OH, loc_K=loc_K,
                         loc_H2O=loc_H2O, r=r, g_OO=g_OO, g_HO=g_HO, g_KO=g_KO)
+    print('done', i)

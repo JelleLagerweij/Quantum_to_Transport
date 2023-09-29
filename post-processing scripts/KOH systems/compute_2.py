@@ -111,7 +111,7 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/10ns/']
 
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
-path = '../../../RPBE_Production/MLMD/10ns/'
+path = '../../../RPBE_Production/AIMD/10ns/'
 # folder = ['i_1']
 
 n_KOH = 1
