@@ -77,7 +77,7 @@ plt.rcParams['lines.markeredgewidth'] = 2
 plt.rcParams['lines.linewidth'] = 2
 
 plt.rcParams['axes.linewidth'] = 2
-plt.rcParams['axes.labelsize']= 0.75
+plt.rcParams['axes.labelsize']= 22
 plt.rcParams['xtick.major.pad'] = 7
 plt.rcParams['ytick.major.pad'] = 7
 
@@ -91,7 +91,7 @@ plt.rcParams['ytick.direction'] =  'in'
 plt.rcParams['ytick.right'] = True
 
 plt.rcParams["legend.frameon"] = False
-# plt.rcParams['font.size'] = 18
+plt.rcParams['font.size'] = 25
 plt.rcParams['axes.labelpad']= 7
 plt.rcParams['xtick.labelsize'] = 13
 plt.rcParams['ytick.labelsize'] = 13
@@ -106,15 +106,25 @@ figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_
 
 ###############################################################################
 
-path = ['../../../RPBE_Production/AIMD/10ps/',
-        '../../../RPBE_Production/MLMD/100ps_2/',
-        '../../../RPBE_Production/MLMD/100ps_Exp_Density/']
-path_short = [r'AIMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
-              r'MLMD \SI{100}{\ps} $\rho_\text{exp}$']
+path = [r'../../../RPBE_Production/AIMD/10ns/',
+        r'../../../RPBE_Production/AIMD/10ps/',
+        r'../../../RPBE_Production/MLMD/10ns/',
+        r'../../../RPBE_Production/MLMD/100ps_2/',
+        r'../../../RPBE_Production/MLMD/100ps_Exp_density/']
+path_short = [r'AIMD \SI{10}{\ps} 1', r'AIMD \SI{10}{\ps} 2',
+              r'MLMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
+              r'MLMD \SI{100}{\ps} $rho_\text{exp}$']
+
+path = [r'../../../RPBE_Production/AIMD/10ps/',
+        r'../../../RPBE_Production/MLMD/10ns/',
+        r'../../../RPBE_Production/MLMD/100ps_2/',]
+path_short = [r'AIMD \SI{10}{\ps}',
+              r'MLMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}']
+
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 
-n_bins = 5000
-length = 10000
+n_bins = 50000
+length = 100000
 
 for j in range(len(path)):
     hists_s = np.zeros(n_bins)
@@ -129,9 +139,8 @@ for j in range(len(path)):
 
 plt.figure('reaction_spacing')
 #plt.plot(bins, hists_s, label='average')
-# plt.xlabel(r'$t$/[\si{\ps}]')
-# plt.ylabel(r'probability/[-]')
-plt.xlabel('time')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'probability/[-]')
 plt.legend()
 plt.xlim(0, 0.1)
 plt.savefig(figures + '/reaction_spacing3')
