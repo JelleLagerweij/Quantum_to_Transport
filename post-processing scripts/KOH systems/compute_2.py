@@ -97,7 +97,7 @@ plt.rcParams['ytick.labelsize'] = 13
 plt.rcParams['legend.fontsize'] = 15
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
-figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_3\figures'
+figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_4\figures'
 # plt.rcParams['savefig.directory'] = figures
 # Done
 
@@ -111,7 +111,7 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/10ns/']
 
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
-path = '../../../RPBE_Production/AIMD/10ns/'
+path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 # folder = ['i_1']
 
 n_KOH = 1
@@ -164,7 +164,7 @@ for i in range(len(folder)):
     # e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=2500, skip=100)
     # Temp[i, :] = Traj.temperature(plotting=True, filter_width=2500, skip=100)
 
-    # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
+    msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
     # msdK = Traj.windowed_MSD(loc_K, n_KOH)
     # msdH2O = Traj.windowed_MSD(loc_H2O, n_H2O)
 
@@ -279,12 +279,12 @@ for i in range(len(folder)):
 # plt.legend()
 # plt.savefig(figures + '/OH_idex')
 
-# # multiple window loglog
-# plt.figure('multiple window loglog OH')
-# plt.legend()
-# plt.xlabel(r'$t$/[\si{\ps}]')
-# plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
-# plt.savefig(figures + '/MSD OH')
+multiple window loglog
+plt.figure('multiple window loglog OH')
+plt.legend()
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
+plt.savefig(figures + '/MSD OH')
 
 # # multiple window loglog
 # plt.figure('multiple window loglog K')
@@ -335,12 +335,12 @@ for i in range(len(folder)):
 # plt.legend()
 # plt.savefig(figures + '/stepsize')
 
-plt.figure('reaction_spacing')
-plt.plot(bins, hists_s, label='average')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'probability/[-]')
-plt.legend()
-plt.savefig(figures + '/reaction_spacing')
+# plt.figure('reaction_spacing')
+# plt.plot(bins, hists_s, label='average')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'probability/[-]')
+# plt.legend()
+# plt.savefig(figures + '/reaction_spacing')
 
 # p = np.sum(unumpy.uarray(press[:, 0], press[:, 1]))/5
 # t = np.sum(unumpy.uarray(Temp[:, 0], Temp[:, 1]))/5
