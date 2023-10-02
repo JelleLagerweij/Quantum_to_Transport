@@ -76,9 +76,9 @@ plt.rcParams['lines.markeredgewidth'] = 2
 plt.rcParams['lines.linewidth'] = 2
 
 plt.rcParams['axes.linewidth'] = 2
-plt.rcParams['axes.labelsize']= 0.75
-plt.rcParams['xtick.major.pad'] = 7
-plt.rcParams['ytick.major.pad'] = 7
+plt.rcParams['axes.labelpad']= 7
+plt.rcParams['xtick.major.pad'] = 4
+plt.rcParams['ytick.major.pad'] = 4
 
 plt.rcParams['xtick.major.size'] = 7
 plt.rcParams['xtick.major.width'] = 2
@@ -90,11 +90,11 @@ plt.rcParams['ytick.direction'] =  'in'
 plt.rcParams['ytick.right'] = True
 
 plt.rcParams["legend.frameon"] = False
-plt.rcParams['font.size'] = 18
-plt.rcParams['axes.labelpad']= 7
-plt.rcParams['xtick.labelsize'] = 13
-plt.rcParams['ytick.labelsize'] = 13
-plt.rcParams['legend.fontsize'] = 15
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize']= 22
+plt.rcParams['xtick.labelsize'] = 20
+plt.rcParams['ytick.labelsize'] = 20
+plt.rcParams['legend.fontsize'] = 20
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
 figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_4\figures'
@@ -170,9 +170,9 @@ for i in range(len(folder)):
 
     # # t = np.arange(len(Traj.t))
 
-    # # multiple window loglog
-    # plt.figure('multiple window loglog OH')
-    # plt.loglog(Traj.t[1:]*1e12, msdOH[1:], label=folder[i])
+    # multiple window loglog
+    plt.figure('multiple window loglog OH')
+    plt.loglog(Traj.t[1:]*1e12, msdOH[1:], label=folder[i])
 
     # # multiple window loglog
     # plt.figure('multiple window loglog K')
@@ -279,7 +279,7 @@ for i in range(len(folder)):
 # plt.legend()
 # plt.savefig(figures + '/OH_idex')
 
-multiple window loglog
+# multiple window loglog
 plt.figure('multiple window loglog OH')
 plt.legend()
 plt.xlabel(r'$t$/[\si{\ps}]')
