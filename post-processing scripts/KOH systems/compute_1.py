@@ -12,10 +12,9 @@ import numpy as np
 
 # path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 # path = '../../../RPBE_Production/MLMD/100ps_2/'
-path = '../../../RPBE_Production/AIMD/10ns/'
-folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 # folder = ['i_1']
-
+folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
+path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
     reaction_rate, index, loc_OH = Traj.track_OH(rdf=[32, 2, 5])
