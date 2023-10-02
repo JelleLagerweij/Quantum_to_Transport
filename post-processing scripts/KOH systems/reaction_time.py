@@ -78,8 +78,8 @@ plt.rcParams['lines.linewidth'] = 2
 
 plt.rcParams['axes.linewidth'] = 2
 plt.rcParams['axes.labelpad']= 7
-plt.rcParams['xtick.major.pad'] = 7
-plt.rcParams['ytick.major.pad'] = 7
+plt.rcParams['xtick.major.pad'] = 4
+plt.rcParams['ytick.major.pad'] = 4
 
 plt.rcParams['xtick.major.size'] = 7
 plt.rcParams['xtick.major.width'] = 2
@@ -91,8 +91,8 @@ plt.rcParams['ytick.direction'] =  'in'
 plt.rcParams['ytick.right'] = True
 
 plt.rcParams["legend.frameon"] = False
-plt.rcParams['font.size'] = 23
-plt.rcParams['axes.labelsize']= 23
+plt.rcParams['font.size'] = 22
+plt.rcParams['axes.labelsize']= 22
 plt.rcParams['xtick.labelsize'] = 20
 plt.rcParams['ytick.labelsize'] = 20
 plt.rcParams['legend.fontsize'] = 20
@@ -106,14 +106,14 @@ figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_
 
 ###############################################################################
 
-path = [r'../../../RPBE_Production/AIMD/10ns/',
-        r'../../../RPBE_Production/AIMD/10ps/',
-        r'../../../RPBE_Production/MLMD/10ns/',
-        r'../../../RPBE_Production/MLMD/100ps_2/',
-        r'../../../RPBE_Production/MLMD/100ps_Exp_density/']
-path_short = [r'AIMD \SI{10}{\ps} 1', r'AIMD \SI{10}{\ps} 2',
-              r'MLMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
-              r'MLMD \SI{100}{\ps} $rho_\text{exp}$']
+# path = [r'../../../RPBE_Production/AIMD/10ns/',
+#         r'../../../RPBE_Production/AIMD/10ps/',
+#         r'../../../RPBE_Production/MLMD/10ns/',
+#         r'../../../RPBE_Production/MLMD/100ps_2/',
+#         r'../../../RPBE_Production/MLMD/100ps_Exp_density/']
+# path_short = [r'AIMD \SI{10}{\ps} 1', r'AIMD \SI{10}{\ps} 2',
+#               r'MLMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}',
+#               r'MLMD \SI{100}{\ps} $rho_\text{exp}$']
 
 path = [r'../../../RPBE_Production/AIMD/10ps/',
         r'../../../RPBE_Production/MLMD/10ns/',
@@ -144,5 +144,5 @@ plt.ylabel(r'probability/[-]')
 plt.legend()
 plt.xlim(0, 0.1)
 plt.ylim(0, 0.055)
-plt.tight_layout()
+# plt.tight_layout()
 plt.savefig(figures + '/reaction_spacing3')
