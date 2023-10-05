@@ -111,7 +111,7 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/10ns/']
 
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
-path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
+path = '../../../RPBE_Production/AIMD/10ps/'
 # folder = ['i_1']
 
 n_KOH = 1
@@ -140,9 +140,9 @@ hists_s = np.zeros(100)
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
     index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
-    hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
-    # %%
-    hists_s += hist/len(folder)
+    # hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
+
+    # hists_s += hist/len(folder)
     
 
     # visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
@@ -164,15 +164,15 @@ for i in range(len(folder)):
     # e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=2500, skip=100)
     # Temp[i, :] = Traj.temperature(plotting=True, filter_width=2500, skip=100)
 
-    msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
+    # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
     # msdK = Traj.windowed_MSD(loc_K, n_KOH)
     # msdH2O = Traj.windowed_MSD(loc_H2O, n_H2O)
 
     # # t = np.arange(len(Traj.t))
 
     # multiple window loglog
-    plt.figure('multiple window loglog OH')
-    plt.loglog(Traj.t[1:]*1e12, msdOH[1:], label=folder[i])
+    # plt.figure('multiple window loglog OH')
+    # plt.loglog(Traj.t[1:]*1e12, msdOH[1:], label=folder[i])
 
     # # multiple window loglog
     # plt.figure('multiple window loglog K')
@@ -195,14 +195,14 @@ for i in range(len(folder)):
     # MSD_test = msdH2O[n]
     # diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
 
-#     plt.figure('Number OH-')
-#     plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
+    plt.figure('Number OH-')
+    plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
 
-#     plt.figure('Number H3O+')
-#     plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
+    plt.figure('Number H3O+')
+    plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
 
-#     plt.figure('Number H2O')
-#     plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
+    plt.figure('Number H2O')
+    plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
 
 #     plt.figure('xyz OH-')
 #     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 0], label='x')
@@ -220,7 +220,7 @@ for i in range(len(folder)):
 # #                 np.mean(KO, axis=0), np.std(KO, axis=0)])
 # # np.save(path+'rdfs.npy', rdfs)
 
-# t_max = int(len(Traj.t)*1e-3)
+t_max = int(len(Traj.t)*1e-3)
 # plt.figure('pressure')
 # plt.xlabel(r'$t$/[\si{\ps}]')
 # plt.ylabel(r'$P$/[\si{\bar}]')
@@ -279,12 +279,12 @@ for i in range(len(folder)):
 # plt.legend()
 # plt.savefig(figures + '/OH_idex')
 
-# multiple window loglog
-plt.figure('multiple window loglog OH')
-plt.legend()
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
-plt.savefig(figures + '/MSD OH')
+# # multiple window loglog
+# plt.figure('multiple window loglog OH')
+# plt.legend()
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
+# plt.savefig(figures + '/MSD OH')
 
 # # multiple window loglog
 # plt.figure('multiple window loglog K')
@@ -300,26 +300,28 @@ plt.savefig(figures + '/MSD OH')
 # plt.ylabel(r'$MSD_\text{\ce{H2O}}$/[\si{\angstrom\squared}]')
 # plt.savefig(figures + '/MSD H2O')
 
-# plt.figure('Number OH-')
-# plt.xlabel(r'$t$/[\si{\ps}]')
-# plt.ylabel(r'$N_\text{\ce{OH-}}$')
-# plt.xlim(0, t_max)
-# plt.legend()
-# plt.savefig(figures + '/N_OH')
+plt.figure('Number OH-')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$N_\text{\ce{OH-}}$')
+plt.xlim(0, t_max)
+plt.ylim(-0.5, 5)
+plt.legend()
+plt.savefig(figures + '/N_OH')
 
-# plt.figure('Number H3O+')
-# plt.legend()
-# plt.xlabel(r'$t$/[\si{\ps}]')
-# plt.ylabel(r'$N_\text{\ce{H3O+}}$')
-# plt.xlim(0, t_max)
-# plt.savefig(figures + '/N_H3O')
+plt.figure('Number H3O+')
+plt.legend()
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$N_\text{\ce{H3O+}}$')
+plt.xlim(0, t_max)
+plt.ylim(-0.5, 5)
+plt.savefig(figures + '/N_H3O')
 
-# plt.figure('Number H2O')
-# plt.legend()
-# plt.xlabel(r'$t$/[\si{\ps}]')
-# plt.ylabel(r'$N_\text{\ce{H2O}}$')
-# plt.xlim(0, t_max)
-# plt.savefig(figures + '/N_H2O')
+plt.figure('Number H2O')
+plt.legend()
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$N_\text{\ce{H2O}}$')
+plt.xlim(0, t_max)
+plt.savefig(figures + '/N_H2O')
 
 # plt.figure('xyz OH-')
 # plt.xlabel(r'$t$/[\si{\ps}]')
