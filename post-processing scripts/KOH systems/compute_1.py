@@ -13,8 +13,8 @@ import numpy as np
 # path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 # path = '../../../RPBE_Production/MLMD/100ps_2/'
 # folder = ['i_1']
-folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
-path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
+folder = ['i_1', 'i_2', 'i_3']#, 'i_4', 'i_5']
+path = '../../../RPBE_Production/MLMD/10ns/'
 # path = '../../../RPBE_Production/AIMD/10ps/'
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path+folder[i])
