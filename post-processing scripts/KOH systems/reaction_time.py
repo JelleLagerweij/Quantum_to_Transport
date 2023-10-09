@@ -117,13 +117,13 @@ figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_
 
 path = [r'../../../RPBE_Production/AIMD/10ps/',
         r'../../../RPBE_Production/MLMD/10ns/',
-        r'../../../RPBE_Production/MLMD/100ps_2/',]
+        r'../../../RPBE_Production/MLMD/100ps_Exp_density/']
 path_short = [r'AIMD \SI{10}{\ps}',
               r'MLMD \SI{10}{\ps}', r'MLMD \SI{100}{\ps}']
 
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 
-n_bins = 50000
+n_bins = 200
 length = 100000
 
 for j in range(len(path)):
@@ -142,7 +142,7 @@ plt.figure('reaction_spacing')
 plt.xlabel(r'$t$/[\si{\ps}]')
 plt.ylabel(r'probability/[-]')
 plt.legend()
-plt.xlim(0, 0.1)
-plt.ylim(0, 0.055)
-# plt.tight_layotut()
-plt.savefig(figures + '/reaction_spacing3')
+plt.xlim(0, 10)
+plt.ylim(1e-8, 1e-3)
+plt.yscale("log")
+plt.savefig(figures + '/reaction_spacing')

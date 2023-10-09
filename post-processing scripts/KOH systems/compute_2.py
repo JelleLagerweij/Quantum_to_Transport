@@ -110,8 +110,8 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/100ps_Exp_Density/',
         '../../../RPBE_Production/MLMD/10ns/']
 
-folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
-path = '../../../RPBE_Production/AIMD/10ps/'
+folder = ['i_1'] #, 'i_2', 'i_3', 'i_4', 'i_5']
+path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 # folder = ['i_1']
 
 n_KOH = 1
@@ -182,8 +182,8 @@ for i in range(len(folder)):
     # plt.figure('multiple window loglog H2O')
     # plt.loglog(Traj.t[1:]*1e12, msdH2O[1:], label=folder[i])
 
-    # plt.figure('OH index')
-    # plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
+    plt.figure('OH index')
+    plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
 
     # n = np.arange(start=1000, stop=len(Traj.t), step=100)
     # n = np.arange(start=10000, stop=len(Traj.t), step=100)
@@ -195,14 +195,14 @@ for i in range(len(folder)):
     # MSD_test = msdH2O[n]
     # diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
 
-    plt.figure('Number OH-')
-    plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
+    # plt.figure('Number OH-')
+    # plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
 
-    plt.figure('Number H3O+')
-    plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
+    # plt.figure('Number H3O+')
+    # plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
 
-    plt.figure('Number H2O')
-    plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
+    # plt.figure('Number H2O')
+    # plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
 
 #     plt.figure('xyz OH-')
 #     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 0], label='x')
@@ -271,13 +271,13 @@ t_max = int(len(Traj.t)*1e-3)
 # # plt.legend()
 # # plt.savefig(figures + '/BEES')
 
-# plt.figure('OH index')
-# plt.xlabel(r'$t$/[\si{\ps}]')
-# plt.ylabel(r'Index of oxygen of OH-')
-# plt.xlim(0, t_max)
-# plt.ylim(-5, 60)
-# plt.legend()
-# plt.savefig(figures + '/OH_idex')
+plt.figure('OH index')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'Index of oxygen of OH-')
+plt.xlim(0, t_max)
+plt.ylim(-5, 60)
+plt.legend()
+plt.savefig(figures + '/OH_idex')
 
 # # multiple window loglog
 # plt.figure('multiple window loglog OH')
@@ -300,28 +300,28 @@ t_max = int(len(Traj.t)*1e-3)
 # plt.ylabel(r'$MSD_\text{\ce{H2O}}$/[\si{\angstrom\squared}]')
 # plt.savefig(figures + '/MSD H2O')
 
-plt.figure('Number OH-')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$N_\text{\ce{OH-}}$')
-plt.xlim(0, t_max)
-plt.ylim(-0.5, 5)
-plt.legend()
-plt.savefig(figures + '/N_OH')
+# plt.figure('Number OH-')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$N_\text{\ce{OH-}}$')
+# plt.xlim(0, t_max)
+# plt.ylim(-0.5, 5)
+# plt.legend()
+# plt.savefig(figures + '/N_OH')
 
-plt.figure('Number H3O+')
-plt.legend()
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$N_\text{\ce{H3O+}}$')
-plt.xlim(0, t_max)
-plt.ylim(-0.5, 5)
-plt.savefig(figures + '/N_H3O')
+# plt.figure('Number H3O+')
+# plt.legend()
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$N_\text{\ce{H3O+}}$')
+# plt.xlim(0, t_max)
+# plt.ylim(-0.5, 5)
+# plt.savefig(figures + '/N_H3O')
 
-plt.figure('Number H2O')
-plt.legend()
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$N_\text{\ce{H2O}}$')
-plt.xlim(0, t_max)
-plt.savefig(figures + '/N_H2O')
+# plt.figure('Number H2O')
+# plt.legend()
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$N_\text{\ce{H2O}}$')
+# plt.xlim(0, t_max)
+# plt.savefig(figures + '/N_H2O')
 
 # plt.figure('xyz OH-')
 # plt.xlabel(r'$t$/[\si{\ps}]')
