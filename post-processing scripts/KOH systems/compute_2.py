@@ -90,6 +90,7 @@ plt.rcParams['ytick.direction'] =  'in'
 plt.rcParams['ytick.right'] = True
 
 plt.rcParams["legend.frameon"] = False
+plt.rcParams["figure.autolayout"] = True
 plt.rcParams['font.size'] = 22
 plt.rcParams['axes.labelsize']= 22
 plt.rcParams['xtick.labelsize'] = 20
@@ -97,7 +98,7 @@ plt.rcParams['ytick.labelsize'] = 20
 plt.rcParams['legend.fontsize'] = 20
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
-figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_5\figures'
+figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_6\figures'
 # plt.rcParams['savefig.directory'] = figures
 # Done
 
@@ -112,7 +113,7 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
 
 folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
 path_s = '../../../RPBE_PreProduction/timsteps/'
-timesteps = np.arange(10) + 1
+timesteps = np.array([2, 5, 7, 10])
 
 n_KOH = 1
 n_H2O = 110
@@ -123,6 +124,7 @@ e_kin = np.zeros((len(folder), 2))
 e_pot = np.zeros((len(folder), 2))
 e_tot = np.zeros((len(folder), 2))
 Temp = np.zeros((len(folder), 2))
+E_ham = np.zeros((len(folder), 2))
 diff_OH = np.zeros(len(folder))
 diff_K = np.zeros(len(folder))
 diff_H2O = np.zeros(len(folder))
@@ -139,7 +141,7 @@ hists_s = np.zeros(100)
 
 for j in range(len(timesteps)):
     plt.close('all')
-    path = path_s + 'timestep_' + str(timesteps[j]) + '/'
+    path = path_s + 'long_' + str(timesteps[j]) + '/'
     for i in range(len(folder)):
         Traj = hop.Prot_Hop(path+folder[i], dt=timesteps[j]*1e-16)
         index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
@@ -161,11 +163,12 @@ for j in range(len(timesteps)):
 
         # # sanity checks
         # # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
-        press[i, :] = Traj.pressure(plotting=True, filter_width=2500, skip=100)
-        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=1, skip=1)
-        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=1, skip=1)
-        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=1, skip=1)
-        Temp[i, :] = Traj.temperature(plotting=True, filter_width=1, skip=1)
+        press[i, :] = Traj.pressure(plotting=True, filter_width=0, skip=1)
+        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=0, skip=1)
+        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=0, skip=1)
+        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=0, skip=1)
+        Temp[i, :] = Traj.temperature(plotting=True, filter_width=0, skip=1)
+        E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=0, skip=1)
 
         # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
         # msdK = Traj.windowed_MSD(loc_K, n_KOH)
@@ -261,6 +264,13 @@ for j in range(len(timesteps)):
     plt.xlim(0, t_max)
     plt.legend()
     plt.savefig(path + '/temperature')
+
+    plt.figure('pseudo hamiltonian')
+    plt.xlabel(r'$t$/[\si{\ps}]')
+    plt.ylabel(r'$E_\text{p-ham}$/[\si{\eV}]')
+    plt.xlim(0, t_max)
+    plt.legend()
+    plt.savefig(path + '/pseudo hamiltonian')
 
     # # plt.figure('BEEF')
     # # plt.xlabel('time in/[ps]')
