@@ -792,6 +792,47 @@ class Prot_Hop:
             plt.plot(self.t*1e12, ener, label=string)
 
         return energy
+    
+    def pseudo_hamiltonian(self, plotting=False, filter_width=0, skip=1):
+        """
+        The psudo hamiltonian function. It calculates the mean pressure of the
+        simulation and optinally shows the total energy in a graph, with
+        an optional filter.
+
+        Parameters
+        ----------
+        plotting : Boolean, optional
+            Optional plots the total  energy as function of time. The default
+            is False.
+        filter_width : Integer, optional
+            Filter width of the moving average filter. The default is 0, which
+            results in no filtering.
+
+        Returns
+        -------
+        energy : Float
+            The total energy of the simulation run in eV.
+
+        """
+        # Retrieve the total energ from the dataframe. This is done by
+        # subtracting nose energies from the total energy
+        # ener = np.array(['total energy   ETOTAL'])
+        ener = self.energy['total energy   ETOTAL']
+        energy = statistics(ener[0::skip])
+
+        # plot if asked for
+        if plotting is True:
+            # filter if needed
+            ener = filter(ener, filter_width)
+
+            # set labels of plot
+            i = re.findall(r'\d+', self.folder)[-1]
+            string = ' run ' + i
+
+            plt.figure('pseudo hamiltonian')
+            plt.plot(self.t*1e12, ener, label=string)
+
+        return energy
 
     def temperature(self, plotting=False, filter_width=0, skip=1):
         """
