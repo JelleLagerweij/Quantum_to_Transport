@@ -608,7 +608,6 @@ class Prot_Hop:
             # set labels of plot
             i = re.findall(r'\d+', self.folder)[-1]
             string = ' run ' + i
-
             plt.figure('pressure')
             plt.plot(self.t*1e12, press, label=string)
 
