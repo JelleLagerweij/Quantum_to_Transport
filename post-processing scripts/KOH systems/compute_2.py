@@ -111,7 +111,7 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/100ps_Exp_Density/',
         '../../../RPBE_Production/MLMD/10ns/']
 
-folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
+folder = ['i_1', 'i_2', 'i_3'] #, 'i_4', 'i_5']
 path_s = '../../../RPBE_PreProduction/timsteps/'
 timesteps = np.array([2, 5, 7, 10])
 
@@ -163,12 +163,12 @@ for j in range(len(timesteps)):
 
         # # sanity checks
         # # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
-        press[i, :] = Traj.pressure(plotting=True, filter_width=0, skip=1)
-        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=0, skip=1)
-        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=0, skip=1)
-        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=0, skip=1)
-        Temp[i, :] = Traj.temperature(plotting=True, filter_width=0, skip=1)
-        E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=0, skip=1)
+        press[i, :] = Traj.pressure(plotting=True, filter_width=10, skip=1)
+        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=10, skip=1)
+        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=10, skip=1)
+        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=10, skip=1)
+        Temp[i, :] = Traj.temperature(plotting=True, filter_width=10, skip=1)
+        E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=10, skip=1)
 
         # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
         # msdK = Traj.windowed_MSD(loc_K, n_KOH)
@@ -227,7 +227,7 @@ for j in range(len(timesteps)):
     # # np.save(path+'rdfs.npy', rdfs)
 
     # Create directory for figures
-    path = figures + "/timesteps_" + str(timesteps[j])
+    path = figures + "/version2_timesteps_" + str(timesteps[j])
     os.mkdir(path)
     t_max = max(Traj.t)*1e12
     plt.figure('pressure')
