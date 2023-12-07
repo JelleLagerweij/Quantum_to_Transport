@@ -16,7 +16,7 @@ plt.close('all')
 ###############################################################################
 # Setting the default figure properties for all documents
 plt.close('all')
-plt.rcParams["figure.figsize"] = [8, 6]
+plt.rcParams["figure.figsize"] = [10, 6]
 label_spacing = 1.1
 marker = ['o', 'x', '^', '>']
 
@@ -111,9 +111,9 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/100ps_Exp_Density/',
         '../../../RPBE_Production/MLMD/10ns/']
 
-folder = ['i_1', 'i_2', 'i_3'] #, 'i_4', 'i_5']
-path_s = '../../../RPBE_PreProduction/timsteps/'
-timesteps = np.array([2, 5, 7, 10])
+folder = ['i_1', 'i_2'] #, 'i_3', 'i_4', 'i_5']
+path_s = '../../../RPBE_PreProduction/timsteps/long_ediff_e_'
+ediff = np.array([5, 6])
 
 n_KOH = 1
 n_H2O = 110
@@ -139,11 +139,10 @@ n_HO = np.zeros(len(folder))
 n_KO = np.zeros(len(folder))
 hists_s = np.zeros(100)
 
-for j in range(len(timesteps)):
-    plt.close('all')
-    path = path_s + 'long_' + str(timesteps[j]) + '/'
+for j in range(len(ediff)):
+    path = path_s + str(ediff[j]) + '/'
     for i in range(len(folder)):
-        Traj = hop.Prot_Hop(path+folder[i], dt=timesteps[j]*1e-16)
+        Traj = hop.Prot_Hop(path+folder[i], dt=5*1e-16)
         index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
         # hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
 
@@ -161,14 +160,15 @@ for j in range(len(timesteps)):
         # d_HO[i] = r[np.argmax(HO[i, :])]
         # d_KO[i] = r[np.argmax(KO[i, :])]
 
-        # # sanity checks
-        # # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
-        press[i, :] = Traj.pressure(plotting=True, filter_width=10, skip=1)
-        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=10, skip=1)
-        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=10, skip=1)
-        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=10, skip=1)
-        Temp[i, :] = Traj.temperature(plotting=True, filter_width=10, skip=1)
-        E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=10, skip=1)
+        # sanity checks
+        name = 'ediff= 10^-' + str(ediff[j]) 
+        # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
+        press[i, :] = Traj.pressure(plotting=True, filter_width=0, skip=1, name=name)
+        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=0, skip=1, name=name)
+        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=0, skip=1, name=name)
+        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=0, skip=1, name=name)
+        Temp[i, :] = Traj.temperature(plotting=True, filter_width=0, skip=1, name=name)
+        E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=0, skip=1, name=name)
 
         # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
         # msdK = Traj.windowed_MSD(loc_K, n_KOH)
@@ -227,176 +227,176 @@ for j in range(len(timesteps)):
     # # np.save(path+'rdfs.npy', rdfs)
 
     # Create directory for figures
-    path = figures + "/version2_timesteps_" + str(timesteps[j])
-    os.mkdir(path)
-    t_max = max(Traj.t)*1e12
-    plt.figure('pressure')
-    plt.xlabel(r'$t$/[\si{\ps}]')
-    plt.ylabel(r'$P$/[\si{\bar}]')
-    plt.xlim(0, t_max)
-    plt.legend()
-    plt.savefig(path + '/pressure')
+path = figures + "/long_ediff"
+os.mkdir(path)
+t_max = max(Traj.t)*1e12
+plt.figure('pressure')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$P$/[\si{\bar}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(path + '/pressure')
 
-    plt.figure('kinetic energy')
-    plt.xlabel(r'$t$/[\si{\ps}]')
-    plt.ylabel(r'$E_\text{kin}$/[\si{\eV}]')
-    plt.xlim(0, t_max)
-    plt.legend()
-    plt.savefig(path + '/kinetic energy')
+plt.figure('kinetic energy')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{kin}$/[\si{\eV}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(path + '/kinetic energy')
 
-    plt.figure('potential energy')
-    plt.xlabel(r'$t$/[\si{\ps}]')
-    plt.ylabel(r'$E_\text{pot}$/[\si{\eV}]')
-    plt.xlim(0, t_max)
-    plt.legend()
-    plt.savefig(path + '/potential energy')
+plt.figure('potential energy')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{pot}$/[\si{\eV}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(path + '/potential energy')
 
-    plt.figure('total energy')
-    plt.xlabel(r'$t$/[\si{\ps}]')
-    plt.ylabel(r'$E_\text{tot}$/[\si{\eV}]')
-    plt.xlim(0, t_max)
-    plt.legend()
-    plt.savefig(path + '/total energy')
+plt.figure('total energy')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{tot}$/[\si{\eV}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(path + '/total energy')
 
-    plt.figure('temperature')
-    plt.xlabel(r'$t$/[\si{\ps}]')
-    plt.ylabel(r'$T$/[\si{\K}]')
-    plt.xlim(0, t_max)
-    plt.legend()
-    plt.savefig(path + '/temperature')
+plt.figure('temperature')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$T$/[\si{\K}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(path + '/temperature')
 
-    plt.figure('pseudo hamiltonian')
-    plt.xlabel(r'$t$/[\si{\ps}]')
-    plt.ylabel(r'$E_\text{p-ham}$/[\si{\eV}]')
-    plt.xlim(0, t_max)
-    plt.legend()
-    plt.savefig(path + '/pseudo hamiltonian')
+plt.figure('pseudo hamiltonian')
+plt.xlabel(r'$t$/[\si{\ps}]')
+plt.ylabel(r'$E_\text{p-ham}$/[\si{\eV}]')
+plt.xlim(0, t_max)
+plt.legend()
+plt.savefig(path + '/pseudo hamiltonian')
 
-    # # plt.figure('BEEF')
-    # # plt.xlabel('time in/[ps]')
-    # # plt.ylabel('force/[eV/angstrom]')
-    # # plt.xlim(0, t_max)
-    # # plt.ylim(0, 0.15)
-    # # plt.legend()
-    # # plt.savefig(figures + '/BEEF')
+# # plt.figure('BEEF')
+# # plt.xlabel('time in/[ps]')
+# # plt.ylabel('force/[eV/angstrom]')
+# # plt.xlim(0, t_max)
+# # plt.ylim(0, 0.15)
+# # plt.legend()
+# # plt.savefig(figures + '/BEEF')
 
-    # # plt.figure('BEES')
-    # # plt.xlabel('time in/[ps]')
-    # # plt.ylabel('stress/[bar]')
-    # # plt.xlim(0, t_max)
-    # # plt.legend()
-    # # plt.savefig(figures + '/BEES')
+# # plt.figure('BEES')
+# # plt.xlabel('time in/[ps]')
+# # plt.ylabel('stress/[bar]')
+# # plt.xlim(0, t_max)
+# # plt.legend()
+# # plt.savefig(figures + '/BEES')
 
-    # plt.figure('OH index')
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'Index of oxygen of OH-')
-    # plt.xlim(0, t_max)
-    # plt.ylim(-5, 60)
-    # plt.legend()
-    # plt.savefig(figures + '/OH_idex')
+# plt.figure('OH index')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'Index of oxygen of OH-')
+# plt.xlim(0, t_max)
+# plt.ylim(-5, 60)
+# plt.legend()
+# plt.savefig(figures + '/OH_idex')
 
-    # # multiple window loglog
-    # plt.figure('multiple window loglog OH')
-    # plt.legend()
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
-    # plt.savefig(figures + '/MSD OH')
+# # multiple window loglog
+# plt.figure('multiple window loglog OH')
+# plt.legend()
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$MSD_\text{\ce{OH-}}$/[\si{\angstrom\squared}]')
+# plt.savefig(figures + '/MSD OH')
 
-    # # multiple window loglog
-    # plt.figure('multiple window loglog K')
-    # plt.legend()
-    # plt.xlabel(r'time in/[ps]')
-    # plt.ylabel(r'$MSD_\text{\ce{K+}}$/[\si{\angstrom\squared}]')
-    # plt.savefig(figures + '/MSD K')
+# # multiple window loglog
+# plt.figure('multiple window loglog K')
+# plt.legend()
+# plt.xlabel(r'time in/[ps]')
+# plt.ylabel(r'$MSD_\text{\ce{K+}}$/[\si{\angstrom\squared}]')
+# plt.savefig(figures + '/MSD K')
 
-    # # multiple window loglog
-    # plt.figure('multiple window loglog H2O')
-    # plt.legend()
-    # plt.xlabel(r'time in/[ps]')
-    # plt.ylabel(r'$MSD_\text{\ce{H2O}}$/[\si{\angstrom\squared}]')
-    # plt.savefig(figures + '/MSD H2O')
+# # multiple window loglog
+# plt.figure('multiple window loglog H2O')
+# plt.legend()
+# plt.xlabel(r'time in/[ps]')
+# plt.ylabel(r'$MSD_\text{\ce{H2O}}$/[\si{\angstrom\squared}]')
+# plt.savefig(figures + '/MSD H2O')
 
-    # plt.figure('Number OH-')
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'$N_\text{\ce{OH-}}$')
-    # plt.xlim(0, t_max)
-    # plt.ylim(-0.5, 5)
-    # plt.legend()
-    # plt.savefig(figures + '/N_OH')
+# plt.figure('Number OH-')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$N_\text{\ce{OH-}}$')
+# plt.xlim(0, t_max)
+# plt.ylim(-0.5, 5)
+# plt.legend()
+# plt.savefig(figures + '/N_OH')
 
-    # plt.figure('Number H3O+')
-    # plt.legend()
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'$N_\text{\ce{H3O+}}$')
-    # plt.xlim(0, t_max)
-    # plt.ylim(-0.5, 5)
-    # plt.savefig(figures + '/N_H3O')
+# plt.figure('Number H3O+')
+# plt.legend()
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$N_\text{\ce{H3O+}}$')
+# plt.xlim(0, t_max)
+# plt.ylim(-0.5, 5)
+# plt.savefig(figures + '/N_H3O')
 
-    # plt.figure('Number H2O')
-    # plt.legend()
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'$N_\text{\ce{H2O}}$')
-    # plt.xlim(0, t_max)
-    # plt.savefig(figures + '/N_H2O')
+# plt.figure('Number H2O')
+# plt.legend()
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$N_\text{\ce{H2O}}$')
+# plt.xlim(0, t_max)
+# plt.savefig(figures + '/N_H2O')
 
-    # plt.figure('xyz OH-')
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'position/[\si{\angstrom}]')
-    # plt.xlim(0, t_max)
-    # plt.legend()
-    # plt.savefig(figures + '/trajectory')
+# plt.figure('xyz OH-')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'position/[\si{\angstrom}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(figures + '/trajectory')
 
-    # plt.figure('stepsize')
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'stepsize/[\si{\angstrom}]')
-    # plt.xlim(0, t_max)
-    # plt.legend()
-    # plt.savefig(figures + '/stepsize')
+# plt.figure('stepsize')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'stepsize/[\si{\angstrom}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(figures + '/stepsize')
 
-    # plt.figure('reaction_spacing')
-    # plt.plot(bins, hists_s, label='average')
-    # plt.xlabel(r'$t$/[\si{\ps}]')
-    # plt.ylabel(r'probability/[-]')
-    # plt.legend()
-    # plt.savefig(figures + '/reaction_spacing')
+# plt.figure('reaction_spacing')
+# plt.plot(bins, hists_s, label='average')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'probability/[-]')
+# plt.legend()
+# plt.savefig(figures + '/reaction_spacing')
 
-    # p = np.sum(unumpy.uarray(press[:, 0], press[:, 1]))/5
-    # t = np.sum(unumpy.uarray(Temp[:, 0], Temp[:, 1]))/5
-    # e_tot = np.sum(unumpy.uarray(e_tot[:, 0], e_tot[:, 1]))/5
-    # e_kin = np.sum(unumpy.uarray(e_kin[:, 0], e_kin[:, 1]))/5
-    # e_pot = np.sum(unumpy.uarray(e_pot[:, 0], e_pot[:, 1]))/5
-    # n_oo = unc.ufloat(np.mean(n_OO), np.std(n_OO)/np.sqrt(5))
-    # n_ho = unc.ufloat(np.mean(n_HO), np.std(n_HO)/np.sqrt(5))
-    # n_ko = unc.ufloat(np.mean(n_KO), np.std(n_KO)/np.sqrt(5))
-    # d_oo = unc.ufloat(np.mean(d_OO), np.std(d_OO)/np.sqrt(5))
-    # d_ho = unc.ufloat(np.mean(d_HO), np.std(d_HO)/np.sqrt(5))
-    # d_ko = unc.ufloat(np.mean(d_KO), np.std(d_KO)/np.sqrt(5))
+# p = np.sum(unumpy.uarray(press[:, 0], press[:, 1]))/5
+# t = np.sum(unumpy.uarray(Temp[:, 0], Temp[:, 1]))/5
+# e_tot = np.sum(unumpy.uarray(e_tot[:, 0], e_tot[:, 1]))/5
+# e_kin = np.sum(unumpy.uarray(e_kin[:, 0], e_kin[:, 1]))/5
+# e_pot = np.sum(unumpy.uarray(e_pot[:, 0], e_pot[:, 1]))/5
+# n_oo = unc.ufloat(np.mean(n_OO), np.std(n_OO)/np.sqrt(5))
+# n_ho = unc.ufloat(np.mean(n_HO), np.std(n_HO)/np.sqrt(5))
+# n_ko = unc.ufloat(np.mean(n_KO), np.std(n_KO)/np.sqrt(5))
+# d_oo = unc.ufloat(np.mean(d_OO), np.std(d_OO)/np.sqrt(5))
+# d_ho = unc.ufloat(np.mean(d_HO), np.std(d_HO)/np.sqrt(5))
+# d_ko = unc.ufloat(np.mean(d_KO), np.std(d_KO)/np.sqrt(5))
 
-    # viscosity = unc.ufloat(np.mean(visc[:, 0]),
-    #                         np.std(visc[:, 1])/np.sqrt(5))
-    # D_cor = co.k*t*2.837298/(6*np.pi*Traj.L*1e-10*viscosity)
-    # D_H2O = unc.ufloat(np.mean(diff_H2O), np.std(diff_H2O)/np.sqrt(5)) + D_cor
-    # D_OH = unc.ufloat(np.mean(diff_OH), np.std(diff_OH)/np.sqrt(5)) + D_cor
-    # D_K = unc.ufloat(np.mean(diff_K), np.std(diff_K)/np.sqrt(5)) + D_cor
-    # sigma = (1*co.eV**2)*(D_K + D_OH)/(co.k*t*(Traj.L*1e-10)**3)
+# viscosity = unc.ufloat(np.mean(visc[:, 0]),
+#                         np.std(visc[:, 1])/np.sqrt(5))
+# D_cor = co.k*t*2.837298/(6*np.pi*Traj.L*1e-10*viscosity)
+# D_H2O = unc.ufloat(np.mean(diff_H2O), np.std(diff_H2O)/np.sqrt(5)) + D_cor
+# D_OH = unc.ufloat(np.mean(diff_OH), np.std(diff_OH)/np.sqrt(5)) + D_cor
+# D_K = unc.ufloat(np.mean(diff_K), np.std(diff_K)/np.sqrt(5)) + D_cor
+# sigma = (1*co.eV**2)*(D_K + D_OH)/(co.k*t*(Traj.L*1e-10)**3)
 
-    # print('first peak in Angstrom =', d_oo)
-    # print('nOO =', n_oo)
-    # print('first peak in Angstrom =', d_ko)
-    # print('nKO =', n_ko)
-    # print('first peak in Angstrom =', d_ho)
-    # print('nHO =', n_ho)
+# print('first peak in Angstrom =', d_oo)
+# print('nOO =', n_oo)
+# print('first peak in Angstrom =', d_ko)
+# print('nKO =', n_ko)
+# print('first peak in Angstrom =', d_ho)
+# print('nHO =', n_ho)
 
 
-    # print('E_tot in eV =', e_tot)
-    # print('E_kin in eV', e_kin)
-    # print('E_pot in eV', e_pot)
-    # print('temperature in K =', t)
-    # print('pressure in bar =', p)
+# print('E_tot in eV =', e_tot)
+# print('E_kin in eV', e_kin)
+# print('E_pot in eV', e_pot)
+# print('temperature in K =', t)
+# print('pressure in bar =', p)
 
-    # print('viscosity in mPas (or cP) =', viscosity*1e3)
-    # print('D_s correction in 10^-9 m^2/s =', D_cor*1e9)
-    # print('D_s H2O in 10^-9 m^2/s =', D_H2O*1e9)
-    # print('D_s K in 10^-9 m^2/s =', D_K*1e9)
-    # print('D_s OH in 10^-9 m^2/s =', D_OH*1e9)
-    # print('Electric conductivity in S/m', sigma)
+# print('viscosity in mPas (or cP) =', viscosity*1e3)
+# print('D_s correction in 10^-9 m^2/s =', D_cor*1e9)
+# print('D_s H2O in 10^-9 m^2/s =', D_H2O*1e9)
+# print('D_s K in 10^-9 m^2/s =', D_K*1e9)
+# print('D_s OH in 10^-9 m^2/s =', D_OH*1e9)
+# print('Electric conductivity in S/m', sigma)
