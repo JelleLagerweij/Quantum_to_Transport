@@ -574,7 +574,7 @@ class Prot_Hop:
         fact = (1e-20)/(6*N_specie)
         return D*fact
 
-    def pressure(self, plotting=False, filter_width=0, skip=1):
+    def pressure(self, plotting=False, filter_width=0, skip=1, name=''):
         """
         Calculate the mean pressure of the simulation.
 
@@ -609,11 +609,11 @@ class Prot_Hop:
             i = re.findall(r'\d+', self.folder)[-1]
             string = ' run ' + i
             plt.figure('pressure')
-            plt.plot(self.t*1e12, press, label=string)
+            plt.plot(self.t*1e12, press, label=name+string)
 
         return pressure
 
-    def bayes_error(self, beefile='BEEF.dat', plotting=False, move_ave=False):
+    def bayes_error(self, beefile='BEEF.dat', plotting=False, move_ave=False, name=''):
         self.beefile = self.folder + beefile
 
         df = pd.read_table(self.beefile, header=None, skiprows=14,
@@ -651,17 +651,17 @@ class Prot_Hop:
             i = re.findall(r'\d+', self.folder)[-1]
             string = ' run ' + i
             plt.figure('BEEF')
-            plt.plot(self.t*1e12, beef_max, label='Max BEEF' + string)
-            plt.plot(self.t*1e12, beef_ave, label='Ave BEEF' + string)
-            # plt.plot(self.t*1e12, beef_tresh, label='Treshold BEEF' + string)
+            plt.plot(self.t*1e12, beef_max, label='Max BEEF' + name + string)
+            plt.plot(self.t*1e12, beef_ave, label='Ave BEEF' + name + string)
+            # plt.plot(self.t*1e12, beef_tresh, label='Treshold BEEF' + name + string)
 
             plt.figure('BEES')
-            plt.plot(self.t*1e12, bees_max*1e3, label='Max BEES' + string)
-            plt.plot(self.t*1e12, bees_ave*1e3, label='Ave BEES' + string)
+            plt.plot(self.t*1e12, bees_max*1e3, label='Max BEES' + name + string)
+            plt.plot(self.t*1e12, bees_ave*1e3, label='Ave BEES' + name + string)
 
         return beef_max.mean(), bees_max.mean()
 
-    def kin_energy(self, plotting=False, filter_width=0, skip=1):
+    def kin_energy(self, plotting=False, filter_width=0, skip=1, name=''):
         """
         The kinetic energy function. It calculates the mean pressure of the
         simulation and optinally shows the kinetic energy in a graph, with
@@ -700,11 +700,11 @@ class Prot_Hop:
             string = ' run ' + i
 
             plt.figure('kinetic energy')
-            plt.plot(self.t*1e12, ener, label=string)
+            plt.plot(self.t*1e12, ener, label=name + string)
 
         return energy
 
-    def pot_energy(self, plotting=False, filter_width=0, skip=1):
+    def pot_energy(self, plotting=False, filter_width=0, skip=1, name=''):
         """
         The potential energy function. It calculates the mean pressure of the
         simulation and optinally shows the potential energy in a graph, with
@@ -745,11 +745,11 @@ class Prot_Hop:
             string = ' run ' + i
 
             plt.figure('potential energy')
-            plt.plot(self.t*1e12, ener, label=string)
+            plt.plot(self.t*1e12, ener, label=name + string)
 
         return energy
 
-    def tot_energy(self, plotting=False, filter_width=0, skip=1):
+    def tot_energy(self, plotting=False, filter_width=0, skip=1, name=''):
         """
         The total energy function. It calculates the mean pressure of the
         simulation and optinally shows the total energy in a graph, with
@@ -789,11 +789,11 @@ class Prot_Hop:
             string = ' run ' + i
 
             plt.figure('total energy')
-            plt.plot(self.t*1e12, ener, label=string)
+            plt.plot(self.t*1e12, ener, label=name + string)
 
         return energy
     
-    def pseudo_hamiltonian(self, plotting=False, filter_width=0, skip=1):
+    def pseudo_hamiltonian(self, plotting=False, filter_width=0, skip=1, name=''):
         """
         The psudo hamiltonian function. It calculates the mean pressure of the
         simulation and optinally shows the total energy in a graph, with
@@ -830,11 +830,11 @@ class Prot_Hop:
             string = ' run ' + i
 
             plt.figure('pseudo hamiltonian')
-            plt.plot(self.t*1e12, ener, label=string)
+            plt.plot(self.t*1e12, ener, label=name + string)
 
         return energy
 
-    def temperature(self, plotting=False, filter_width=0, skip=1):
+    def temperature(self, plotting=False, filter_width=0, skip=1, name=''):
         """
         The temperature function. It calculates the mean temperature of the
         simulation and optinally shows the temperature in a graph, with
@@ -870,7 +870,7 @@ class Prot_Hop:
             string = ' run ' + i
 
             plt.figure('temperature')
-            plt.plot(self.t*1e12, temp, label=string)
+            plt.plot(self.t*1e12, temp, label=name + string)
 
         return temperature
     
