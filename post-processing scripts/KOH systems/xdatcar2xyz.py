@@ -9,8 +9,8 @@ import os
 from ase.io import read, write
 
 # path = '../../../RPBE_Production/MLMD/10ps_Exp_Density/'
-path = '../../../RPBE_Production/AIMD/10ps/'
-folder = ['i_1']
+path = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
+folder = ['i_4']
 
 for i in range(len(folder)):
     pwd = path + folder[i] + '/XDATCAR'

@@ -111,8 +111,8 @@ path = ['../../../RPBE_Production/AIMD/10ps/',
         '../../../RPBE_Production/MLMD/100ps_Exp_Density/',
         '../../../RPBE_Production/MLMD/10ns/']
 
-folder = ['i_1', 'i_2'] #, 'i_3', 'i_4', 'i_5']
-path_s = '../../../RPBE_PreProduction/timsteps/long_ediff_e_'
+folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
+path_s = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
 ediff = np.array([5, 6])
 
 n_KOH = 1
@@ -142,7 +142,7 @@ hists_s = np.zeros(100)
 for j in range(len(ediff)):
     path = path_s + str(ediff[j]) + '/'
     for i in range(len(folder)):
-        Traj = hop.Prot_Hop(path+folder[i], dt=5*1e-16)
+        Traj = hop.Prot_Hop(path+folder[i], dt=10*1e-16)
         index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
         # hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
 
