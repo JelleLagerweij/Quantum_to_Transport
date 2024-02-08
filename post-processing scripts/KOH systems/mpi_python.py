@@ -32,6 +32,7 @@ class Prot_Hop:
         self.dt = dt
         self.species = ['H', 'O', 'K']
         self.T_ave = T_ave
+
         self.comm = MPI.COMM_WORLD
         self.size = self.comm.Get_size()
         self.rank = self.comm.Get_rank()
@@ -130,7 +131,6 @@ class Prot_Hop:
     #         self.n_H2O = np.zeros(self.n_max)  # prepair for real number of H2O
     #         self.H2O_shifts = np.zeros((self.N_O-self.n_OH, 3))
             
-        
 
     def loop_timesteps_all1(self):
         # select only upper triangle interactions and create masks to be able to split species
