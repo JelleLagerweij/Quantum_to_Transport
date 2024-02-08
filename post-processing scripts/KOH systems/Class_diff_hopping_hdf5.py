@@ -67,9 +67,9 @@ class Prot_Hop:
         None.
 
         """
-        # Set which O and H belongs to OH to unknown
-        self.i_O = 0
-        self.i_H = 0
+        # Set which O and H belongs to OH to unknown #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
+        self.i_O = 0   #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
+        self.i_H = 0  #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
 
         # The Position Section
         self.df = Calculation.from_path(self.folder)
@@ -91,24 +91,24 @@ class Prot_Hop:
 
         # Calculating the number of OH-
         self.n_OH = -(self.N_H - 2*self.N_O) 
-        self.shift = np.zeros((self.n_OH, 1, 3))
+        self.shift = np.zeros((self.n_OH, 1, 3))   #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
         self.n_list = 10  # number of Hydrogens in the neighbor list
 
         self.L = data['lattice_vectors'][0, 0, 0]
         self.pos = self.L*data['positions']
-        self.n_max = len(self.pos[:, 0, 0])
-        self.t = np.arange(self.n_max)*self.dt
+        self.n_max = len(self.pos[:, 0, 0])  #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
+        self.t = np.arange(self.n_max)*self.dt    #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
         
-        # number of OH-, H2O and H3O+ counter
-        self.N_OH = np.zeros(self.n_max)
-        self.N_H2O = np.zeros(self.n_max)
-        self.N_H3O = np.zeros(self.n_max)
+        # number of OH-, H2O and H3O+ counter #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
+        self.N_OH = np.zeros(self.n_max)  #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
+        self.N_H2O = np.zeros(self.n_max) #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
+        self.N_H3O = np.zeros(self.n_max) #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
         
         # find initial OH- and other molecules
         self.find_O_i(0)
 
-        self.stress = self.df.stress[:].to_dict()['stress']
-        self.energy  = self.df.energy[:].to_dict()
+        self.stress = self.df.stress[:].to_dict()['stress'] #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
+        self.energy  = self.df.energy[:].to_dict() #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
 
     def find_O_i(self, n):
         """
