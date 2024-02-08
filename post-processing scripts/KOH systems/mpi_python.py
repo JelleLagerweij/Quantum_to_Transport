@@ -12,7 +12,7 @@ from mpi4py import MPI
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
     
-    def __init__(self, folder, T_ave=325, dt=0.5e-15):
+    def __init__(self, folder, T_ave=325, dt=0.5):
         """Postprocesses class for NVT VASP simulations of aqueous KOH.
 
         It can compute the total system viscosity and the diffusion coefficient
@@ -22,25 +22,31 @@ class Prot_Hop:
         using minimal and maximal bond lengths.
 
         Args:
-            folder (srting): path to hdf5 otput file
-            T_ave (float/int, optional): The set simulation temperature. Defaults to 325.
-            dt (float/int, optional): The simulation timestep. Defaults to 0.5e-15.
+            folder (string): path to hdf5 otput file
+            T_ave (float/int, optional): The set simulation temperature in K. Defaults to 325.
+            dt (float/int, optional): The simulation timestep in fs. Defaults to 0.5.
         """
         self.dt = dt
         self.species = ['H', 'O', 'K']
         self.T_ave = T_ave
-        comm = MPI.COMM_WORLD
-        size = comm.Get_size()
-        rank = comm.Get_rank()
+        self.comm = MPI.COMM_WORLD
+        self.size = self.comm.Get_size()
+        self.rank = self.comm.Get_rank()
 
         # Normal Startup Behaviour
         # Initialize system on the main core
-        if rank == 0:
-            self.setting_properties(folder)
-        # Transport all chunks to relavant arrays
-        a = 0
+        if self.rank == 0:
+            self.setting_properties_main(folder)
+        else:
+            self.pos_all_split = None  # create empty dumy on all cores
+            self.L = None
+            self.N = None     
+
+        # Transport all chunks and properties to relavant arrays
+        self.setting_properties_all()
+        self.test_combining()
         
-    def setting_properties(self, folder):
+    def setting_properties_main(self, folder):
         """Load the output file into dedicated arrays
         
         This function should only be executed on the main core
@@ -49,7 +55,62 @@ class Prot_Hop:
             folder (string): path to hdf5 otput file
         """
         
-            
+        # import the system from the hdf5 output
+        self.df = Calculation.from_path(folder)
+        data = self.df.structure[:].to_dict()
+        
+        # Calculate number of atoms total and per type and their indexes
+        self.N = np.array([data['elements'].count(self.species[0]),
+                           data['elements'].count(self.species[1]),
+                           data['elements'].count(self.species[2])])
+        
+
+
+        # Calculate the number of intended OH- ions
+        self.L = data['lattice_vectors'][0, 0, 0]
+        self.pos_all = self.L*data['positions']
+        self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
+        
+        # Todo lateron:
+        # 1. Load the stresses
+        # 2. Load the energies
+
+    def setting_properties_all(self):
+        """Initializes system for all cores
+        """
+        
+        # Import the correct split position arrays
+        self.pos = self.comm.scatter(self.pos_all_split, root=0)
+        self.L = self.comm.bcast(self.L, root=0)
+        self.N = self.comm.bcast(self.N, root=0)
+        
+        self.N_H = self.N[self.species.index('H')]
+        self.N_O = self.N[self.species.index('O')]
+        self.N_K = self.N[self.species.index('K')]
+        
+        self.H = np.arange(self.N_H)
+        self.O = np.arange(self.N_H, self.N_H + self.N_O)
+        self.K = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K)
+        
+        # Calculate and initiate the OH- tracking
+        self.n_OH = 2*self.N_O- self.N_H  # intended number of OH- from input file
+        self.shift = np.zeros((self.n_OH, 1, 3))
+        # Set your shift to 0 for all OH- and give them random index
+        # Find your first selection of OH-
+    
+    def test_combining(self):
+        outputData = self.comm.gather(self.pos, root=0)
+        if self.rank == 0:
+            outputData = np.concatenate(outputData,axis = 0)
+            print(np.array_equal(outputData, self.pos_all))
+        print('Rank=', self.rank, 'result', self.n_OH)
+
+
+Traj = Prot_Hop("../../../RPBE_Production/AIMD/10ps/i_1", dt=0.5)
+
+# outputData = Prot_Hop.comm.gather(Prot_Hop.pos, root=0)
+# if Prot_Hop.rank == 0:
+#     print(outputData == Prot_Hop.pos_all)
 
 # Initialize and load the entire system
    
