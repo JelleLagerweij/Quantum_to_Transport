@@ -81,13 +81,13 @@ class Prot_Hop:
                           data['elements'].count(self.species[2])])
 
         self.N_tot = sum(self.N)
-        self.N_H = self.N[self.species.index('H')]
-        self.N_O = self.N[self.species.index('O')]
-        self.N_K = self.N[self.species.index('K')]
+        self.N_H = self.N[self.species.index('H')] #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
+        self.N_O = self.N[self.species.index('O')] #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
+        self.N_K = self.N[self.species.index('K')] #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
 
-        self.H = np.arange(self.N_H)
-        self.O = np.arange(self.N_H, self.N_H + self.N_O)
-        self.K = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K)
+        self.H = np.arange(self.N_H) #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
+        self.O = np.arange(self.N_H, self.N_H + self.N_O) #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
+        self.K = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K) #!!!!!!!!!!!!!!!!!!! THIS NEEDS TO BE PER CORE
 
         # Calculating the number of OH-
         self.n_OH = -(self.N_H - 2*self.N_O) 
