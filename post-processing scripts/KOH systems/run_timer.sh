@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
+#!/bin/bash
 
+#SBATCH --job-name='test_mpi'
+#SBATCH --partition=compute-p2
+#SBATCH --time=0-01:00:00
+#SBATCH --account=research-ME-pe
+
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --exclusive
+#SBATCH --mem=8G
+
+module load 2023r1-gcc11
+module load openmpi
+
+module load miniconda
+conda activate vasp_post
 
 echo "16 HT START"
 mpiexec -n 16 --use-hwthread-cpus python mpi_python.py
