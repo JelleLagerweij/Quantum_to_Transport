@@ -48,8 +48,7 @@ class Prot_Hop:
 
         # Transport all chunks and properties to relavant arrays
         self.setting_properties_all()
-        self.loop_timesteps_all1()
-        # self.loop_timesteps_all3(cheap=True)
+        self.loop_timesteps_all()
         self.test_combining()
 
     def setting_properties_main(self, folder):
@@ -132,35 +131,7 @@ class Prot_Hop:
     #         self.n_H2O = np.zeros(self.n_max)  # prepair for real number of H2O
     #         self.H2O_shifts = np.zeros((self.N_O-self.n_OH, 3))
 
-
-    def loop_timesteps_all1(self):
-        # select only upper triangle interactions and create masks to be able to split species
-        indices = np.triu_indices(self.N_tot, k=1)
-        get_HH = np.where((np.isin(indices, self.H)[0]==True) & (np.isin(indices, self.H)[1]==True))[0]
-        get_HO = np.where((np.isin(indices, self.H)[0]==True) & (np.isin(indices, self.O)[1]==True))[0]
-        get_HK = np.where((np.isin(indices, self.H)[0]==True) & (np.isin(indices, self.K)[1]==True))[0]
-        get_OO = np.where((np.isin(indices, self.O)[0]==True) & (np.isin(indices, self.O)[1]==True))[0]
-        get_OK = np.where((np.isin(indices, self.O)[0]==True) & (np.isin(indices, self.K)[1]==True))[0]
-        get_KK = np.where((np.isin(indices, self.K)[0]==True) & (np.isin(indices, self.K)[1]==True))[0]
-        for i in range(self.n_max):
-            # Calculate all interatomic distances with PBC and MIC
-            pos = self.pos[i, :, :]
-            r = (pos[indices[1] - indices[0]] + self.L/2) % self.L - self.L/2
-            d = np.sqrt(np.sum(r**2, axis=1))
-        if self.rank == 0:
-            print('Time calculating distances', time.time() - self.tstart)
-
-    # def loop_timesteps_all2(self):     # DEPRICATED, is slower and paralizes less
-    #     # select only upper triangle interactions and create masks to be able to split species
-    #     for i in range(self.n_max):
-    #         # Calculate all interatomic distances with PBC and MIC
-    #         r = np.broadcast_to(self.pos[i, :, :], (self.N_tot, self.N_tot, 3))
-    #         r_vect = (r - r.transpose(1, 0, 2) + self.L/2) % self.L - self.L/2
-    #         d = np.sqrt(np.einsum('ijk, ijk->ij', r_vect, r_vect, optimize='optimal'))
-    #     if self.rank == 0:
-    #         print('Time completion', time.time() - self.tstart)
-
-    def loop_timesteps_all3(self, cheap=True):     # DEPRICATED, is slower and paralizes less
+    def loop_timesteps_all(self, cheap=True):     # DEPRICATED, is slower and paralizes less
         # split the arrays up to per species description
         pos_H = self.pos[:, self.H, :]
         pos_O = self.pos[:, self.O, :]
