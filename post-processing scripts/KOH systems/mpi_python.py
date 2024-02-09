@@ -157,7 +157,41 @@ class Prot_Hop:
     #         r_vect = (r - r.transpose(1, 0, 2) + self.L/2) % self.L - self.L/2
     #         d = np.sqrt(np.einsum('ijk, ijk->ij', r_vect, r_vect, optimize='optimal'))
     #     if self.rank == 0:
-    #         print('Time completion', time.time() - self.tstart)  
+    #         print('Time completion', time.time() - self.tstart)
+    
+    def loop_timesteps_all3(self, cheap=True):     # DEPRICATED, is slower and paralizes less
+        # split the arrays up to per species description
+        pos_H = self.pos[:, self.H, :]
+        pos_O = self.pos[:, self.O, :]
+        pos_K = self.pos[:, self.K, :]
+
+        # Create per species-species interactions indexing arrays
+        idx_HO = np.mgrid[0:self.N_H, 0:self.N_O].reshape(2, self.N_H*self.N_O)
+        idx_OO = np.triu_indices(self.N_O, k=1)
+        idx_KO = np.mgrid[0:self.N_K, 0:self.N_O].reshape(2, self.N_K*self.N_O)
+        idx_KK = np.triu_indices(self.N_O, k=1)
+        if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
+            idx_HH = np.triu_indices(self.N_H, k=1)
+            idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
+        
+        for i in range(self.n_max):
+            r_HO = (pos_O[idx_HO[1]] - pos_H[idx_HO[0]] + self.L/2) % self.L - self.L/2
+            d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
+            r_OO = (pos_O[idx_OO[1]] - pos_O[idx_OO[0]] + self.L/2) % self.L - self.L/2
+            d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
+            r_KO = (pos_O[idx_KO[1]] - pos_K[idx_KO[0]] + self.L/2) % self.L - self.L/2
+            d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
+            r_KK = (pos_K[idx_KK[1]] - pos_K[idx_KK[0]] + self.L/2) % self.L - self.L/2
+            d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
+            
+            if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
+                r_HH = (pos_H[idx_HH[1]] - pos_H[idx_HH[0]] + self.L/2) % self.L - self.L/2
+                d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
+                r_HK = (pos_K[idx_HK[1]] - pos_H[idx_HK[0]] + self.L/2) % self.L - self.L/2
+                d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
+                
+        if self.rank == 0:
+            print('Time completion', time.time() - self.tstart)  
         
     def test_combining(self):
         outputData = self.comm.gather(self.pos, root=0)
