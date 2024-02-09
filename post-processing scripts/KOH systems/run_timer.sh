@@ -2,7 +2,7 @@
 #!/bin/bash
 
 #SBATCH --job-name='test_mpi'
-#SBATCH --partition=compute-p2
+#SBATCH --partition=compute-p1
 #SBATCH --time=0-01:00:00
 #SBATCH --account=research-ME-pe
 
@@ -15,7 +15,7 @@
 module load 2023r1-gcc11
 module load openmpi
 
-module load miniconda
+module load miniconda3
 conda activate vasp_post
 
 echo "16 HT START"
