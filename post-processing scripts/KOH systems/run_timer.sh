@@ -2,8 +2,8 @@
 #!/bin/bash
 
 #SBATCH --job-name='test_mpi'
-#SBATCH --partition=compute-p1
-#SBATCH --time=0-01:00:00
+#SBATCH --partition=compute-p2
+#SBATCH --time=0-00:30:00
 #SBATCH --account=research-ME-pe
 
 #SBATCH --nodes=1
@@ -11,6 +11,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --exclusive
 #SBATCH --mem=8G
+#SBATCH --hint=multithread
 
 module load 2023r1-gcc11
 module load openmpi
