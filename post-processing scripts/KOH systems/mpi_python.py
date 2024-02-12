@@ -109,29 +109,30 @@ class Prot_Hop:
         # Calculate and initiate the OH- tracking
         self.n_OH = self.N_K  # intended number of OH- from input file
 
-    # def find_O_i(self, n):
-    #     """
-    #     Find the index of the Oxygen beloging to the OH-.
+    def find_O_i(self, n):
+        """
+        Find the index of the Oxygen beloging to the OH-.
 
-    #     This function searches for the index of the Oxygen belonging to the OH-
-    #     particles. It automatically creates a neighbor list as well as an array
-    #     which holds the unwraped location of the real OH particle.
+        This function searches for the index of the Oxygen belonging to the OH-
+        particles. It automatically creates a neighbor list as well as an array
+        which holds the unwraped location of the real OH particle.
 
-    #     Args:
-    #         n (integer): timestep of the assesment of the hydoxide recognition
-    #     """
-    #     if n == 0:  # Do a startup procedure
-    #         self.OH = np.zeros(self.n_max, self.N_OH, 3)  # prepair the OH- position storage array
-    #         self.OH_i = np.zeros(self.n_max, self.N_OH)  # prepair for the OH- O index storage array
-    #         self.n_OH = np.zeros(self.n_max)  # prepair for real number of OH-
-    #         self.OH_shift = np.zeros((self.n_OH, 1, 3))
+        Args:
+            n (integer): timestep of the assesment of the hydoxide recognition
+        """
+        if n == 0:  # Do a startup procedure
+            self.OH = np.zeros(self.n_max, self.N_OH, 3)  # prepair the OH- position storage array
+            self.OH_i = np.zeros(self.n_max, self.N_OH)  # prepair for the OH- O index storage array
+            self.n_OH = np.zeros(self.n_max)  # prepair for real number of OH-
+            self.OH_shift = np.zeros((self.n_OH, 1, 3))  # prepair history shift list for pbc crossings
 
-    #         self.H2O = np.zeros(self.n_max, self.N_O - self.N_OH, 3)  # prepair the H2O position storage array
-    #         self.H2O_i = np.zeros(self.n_max, self.N_OH)  # prepair for the H2O O index storage array
-    #         self.n_H2O = np.zeros(self.n_max)  # prepair for real number of H2O
-    #         self.H2O_shifts = np.zeros((self.N_O-self.n_OH, 3))
+            self.H2O = np.zeros(self.n_max, self.N_O - self.N_OH, 3)  # prepair the H2O position storage array
+            self.H2O_i = np.zeros(self.n_max, self.N_OH)  # prepair for the H2O O index storage array
+            self.n_H2O = np.zeros(self.n_max)  # prepair for real number of H2O
+            self.H2O_shifts = np.zeros((self.N_O-self.n_OH, 3))  # prepair history shift list for pbc crossings
+        
 
-    def loop_timesteps_all(self, cheap=True):     # DEPRICATED, is slower and paralizes less
+    def loop_timesteps_all(self, n_samples=10, cheap=True):     # DEPRICATED, is slower and paralizes less
         # split the arrays up to per species description
         pos_H = self.pos[:, self.H, :]
         pos_O = self.pos[:, self.O, :]
@@ -147,20 +148,27 @@ class Prot_Hop:
             idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
 
         for i in range(self.n_max):
+            # Calculate only OH distances for OH- recognition
             r_HO = (pos_O[i, idx_HO[1], :] - pos_H[i, idx_HO[0], :] + self.L/2) % self.L - self.L/2
             d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
-            r_OO = (pos_O[i, idx_OO[1], :] - pos_O[i, idx_OO[0], :] + self.L/2) % self.L - self.L/2
-            d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
-            r_KO = (pos_O[i, idx_KO[1], :] - pos_K[i, idx_KO[0], :] + self.L/2) % self.L - self.L/2
-            d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
-            r_KK = (pos_K[i, idx_KK[1], :] - pos_K[i, idx_KK[0], :] + self.L/2) % self.L - self.L/2
-            d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
+            
+            self.find_O_i(i)
+            if i % n_samples == 0:
+                # Calculate all other distances for RDF's and such when needed
+                r_OO = (pos_O[i, idx_OO[1], :] - pos_O[i, idx_OO[0], :] + self.L/2) % self.L - self.L/2
+                d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
+                r_KO = (pos_O[i, idx_KO[1], :] - pos_K[i, idx_KO[0], :] + self.L/2) % self.L - self.L/2
+                d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
+                r_KK = (pos_K[i, idx_KK[1], :] - pos_K[i, idx_KK[0], :] + self.L/2) % self.L - self.L/2
+                d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
 
-            if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
-                r_HH = (pos_H[i, idx_HH[1], :] - pos_H[:, idx_HH[0], :] + self.L/2) % self.L - self.L/2
-                d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
-                r_HK = (pos_K[i, idx_HK[1], :] - pos_H[:, idx_HK[0], :] + self.L/2) % self.L - self.L/2
-                d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
+                if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
+                    r_HH = (pos_H[i, idx_HH[1], :] - pos_H[:, idx_HH[0], :] + self.L/2) % self.L - self.L/2
+                    d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
+                    r_HK = (pos_K[i, idx_HK[1], :] - pos_H[:, idx_HK[0], :] + self.L/2) % self.L - self.L/2
+                    d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
+            
+            
 
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
