@@ -107,7 +107,8 @@ class Prot_Hop:
         self.K = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K)
 
         # Calculate and initiate the OH- tracking
-        self.n_OH = self.N_K  # intended number of OH- from input file
+        self.N_OH = self.N_K  # intended number of OH- from input file
+        self.N_H2O = self.N_O - self.N_OH
 
     def find_O_i(self, n):
         """
@@ -121,17 +122,53 @@ class Prot_Hop:
             n (integer): timestep of the assesment of the hydoxide recognition
         """
         if n == 0:  # Do a startup procedure
-            self.OH = np.zeros(self.n_max, self.N_OH, 3)  # prepair the OH- position storage array
-            self.OH_i = np.zeros(self.n_max, self.N_OH)  # prepair for the OH- O index storage array
+            self.OH = np.zeros((self.n_max, self.N_OH, 3))  # prepair the OH- position storage array
+            self.OH_i = np.zeros((self.n_max, self.N_OH))  # prepair for the OH- O index storage array
             self.n_OH = np.zeros(self.n_max)  # prepair for real number of OH-
-            self.OH_shift = np.zeros((self.n_OH, 1, 3))  # prepair history shift list for pbc crossings
+            self.OH_shift = np.zeros((self.N_OH, 1, 3))  # prepair history shift list for pbc crossings
 
-            self.H2O = np.zeros(self.n_max, self.N_O - self.N_OH, 3)  # prepair the H2O position storage array
-            self.H2O_i = np.zeros(self.n_max, self.N_OH)  # prepair for the H2O O index storage array
+            self.H2O = np.zeros((self.n_max, self.N_H2O, 3))  # prepair the H2O position storage array
+            self.H2O_i = np.zeros((self.n_max, self.N_OH))  # prepair for the H2O O index storage array
             self.n_H2O = np.zeros(self.n_max)  # prepair for real number of H2O
-            self.H2O_shifts = np.zeros((self.N_O-self.n_OH, 3))  # prepair history shift list for pbc crossings
+            self.H2O_shifts = np.zeros((self.N_O-self.N_OH, 3))  # prepair history shift list for pbc crossings
+            
+            self.H3O_i = np.zeros(self.n_max)  # prepair for real number of H3O+ (should be 0)
         
+        counter_H_per_O = np.bincount(np.argmin(self.d_HO.reshape((self.N_H, self.N_O)), axis=1))  # Get number of H per oxygen in molecule
+        
+        # Identify and count all real OH-, H2O and H3O+
+        OH_i = np.where(counter_H_per_O == 1)
+        self.n_OH[n] = OH_i.shape[1]
+        H2O_i = np.where(counter_H_per_O == 2)
+        self.n_H2O[n] = H2O_i.shape[1]
+        H3O_i = np.where(counter_H_per_O == 3)
+        self.n_H3O[n] = H3O_i.shape[1]
+        
+        # Now start matching the correct molecules together
+        if n == 0:
+            # No matching needed, just filling the arrays correctly
+            self.OH_i = OH_i
+            self.OH[n, :, :] = self.pos_O[n, self.N_OH, :]
+            
+            
+            self.H2O_i = H2O_i
+            self.H2O[n, :, :] = self.pos_O[n, H2O_i, :]
+        else:
+            if OH_i == self.OH_i_s:  # No reaction occured only check PBC
+                self.OH_i[n, :] = self.OH_i[n-1, :]  # use origional sorting by using last version as nothing changed
+                self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
+                
+                self.H2O_i[n, :] = self.H2O_i[n-1, :]  # use origional sorting by using last version as nothing changed
+                self.H2O[n, :, :] = self.pos_O[n, H2O_i, :]
 
+
+            elif self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
+                raise ValueError("Something went wrong, a H3O+ is created", "CPU rank=", self.rank)
+            else:  # Normal reaction cases
+                
+                self.OH_i_s = np.sort(self.OH_i[n, :])  # always sort after reaction or initiation to have cheap check.
+                
+        
     def loop_timesteps_all(self, n_samples=10, cheap=True):     # DEPRICATED, is slower and paralizes less
         # split the arrays up to per species description
         pos_H = self.pos[:, self.H, :]
@@ -150,23 +187,23 @@ class Prot_Hop:
         for i in range(self.n_max):
             # Calculate only OH distances for OH- recognition
             r_HO = (pos_O[i, idx_HO[1], :] - pos_H[i, idx_HO[0], :] + self.L/2) % self.L - self.L/2
-            d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
+            self.d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
             
             self.find_O_i(i)
             if i % n_samples == 0:
                 # Calculate all other distances for RDF's and such when needed
                 r_OO = (pos_O[i, idx_OO[1], :] - pos_O[i, idx_OO[0], :] + self.L/2) % self.L - self.L/2
-                d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
+                self.d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
                 r_KO = (pos_O[i, idx_KO[1], :] - pos_K[i, idx_KO[0], :] + self.L/2) % self.L - self.L/2
-                d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
+                self.d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
                 r_KK = (pos_K[i, idx_KK[1], :] - pos_K[i, idx_KK[0], :] + self.L/2) % self.L - self.L/2
-                d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
+                self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
 
                 if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
                     r_HH = (pos_H[i, idx_HH[1], :] - pos_H[:, idx_HH[0], :] + self.L/2) % self.L - self.L/2
-                    d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
+                    self.d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
                     r_HK = (pos_K[i, idx_HK[1], :] - pos_H[:, idx_HK[0], :] + self.L/2) % self.L - self.L/2
-                    d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
+                    self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
             
             
 
@@ -183,5 +220,5 @@ class Prot_Hop:
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
