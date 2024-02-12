@@ -110,67 +110,67 @@ class Prot_Hop:
         self.stress = self.df.stress[:].to_dict()['stress'] #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
         self.energy  = self.df.energy[:].to_dict() #!!!!!!!!!!!!!!!!!!! Integrade in method after combining
 
-    def find_O_i(self, n):
-        """
-        Find the index of the Oxygen beloging to the OH-.
+    # def find_O_i(self, n):
+    #     """
+    #     Find the index of the Oxygen beloging to the OH-.
 
-        This function searches for the index of the Oxygen belonging to the OH-
-        particles. It automatically creates a neighbor list as well as an array
-        which holds the unwraped location of the real OH particle.
+    #     This function searches for the index of the Oxygen belonging to the OH-
+    #     particles. It automatically creates a neighbor list as well as an array
+    #     which holds the unwraped location of the real OH particle.
 
-        Parameters
-        ----------
-        n : integer
-            Timestep of the assesment.
-        Returns
-        -------
-        None.
+    #     Parameters
+    #     ----------
+    #     n : integer
+    #         Timestep of the assesment.
+    #     Returns
+    #     -------
+    #     None.
 
-        """
-        if n == 0:
-            startup = True
-        else:
-            startup = False
+    #     """
+    #     if n == 0:
+    #         startup = True
+    #     else:
+    #         startup = False
 
-        # Retrieve ALL particle positions.
-        x = self.pos[n, :, :]
-        if startup is False:
-            O_i_old = self.O_i
+    #     # Retrieve ALL particle positions.
+    #     x = self.pos[n, :, :]
+    #     if startup is False:
+    #         O_i_old = self.O_i
 
-        # Compute ALL particle distances^2 including PBC.
-        r = np.broadcast_to(x, (self.N_tot, self.N_tot, 3))
-        r_vect = (r - r.transpose(1, 0, 2) + self.L/2) % self.L - self.L/2
-        d_sq = np.einsum('ijk, ijk->ij', r_vect, r_vect, optimize='optimal')
+    #     # Compute ALL particle distances^2 including PBC.
+    #     r = np.broadcast_to(x, (self.N_tot, self.N_tot, 3))
+    #     r_vect = (r - r.transpose(1, 0, 2) + self.L/2) % self.L - self.L/2
+    #     d_sq = np.einsum('ijk, ijk->ij', r_vect, r_vect, optimize='optimal')
 
-        # Compute which atom index belongs to the OH- Oxygen.
-        d_sq = d_sq[np.ix_(self.H, self.O)]
-        number = (d_sq < self.r_bond**2).sum(axis=0)
-        O_i = np.where(number == 1) + self.N_H
+    #     # Compute which atom index belongs to the OH- Oxygen.
+    #     d_sq = d_sq[np.ix_(self.H, self.O)]
+    #     number = (d_sq < self.r_bond**2).sum(axis=0)
+    #     O_i = np.where(number == 1) + self.N_H
 
-        r_bond = self.r_bond
-        while not (O_i.size == self.n_OH):
-            if O_i.size > self.n_OH:
-                r_bond *= 1.01
-            if O_i.size < self.n_OH:
-                r_bond *= 0.99
-            number = (d_sq < (r_bond - 0.02)**2).sum(axis=0)
-            O_i = np.where(number == 1) + self.N_H
+    #     r_bond = self.r_bond
+    #     while not (O_i.size == self.n_OH):
+    #         if O_i.size > self.n_OH:
+    #             r_bond *= 1.01
+    #         if O_i.size < self.n_OH:
+    #             r_bond *= 0.99
+    #         number = (d_sq < (r_bond - 0.02)**2).sum(axis=0)
+    #         O_i = np.where(number == 1) + self.N_H
 
-        self.O_i = O_i.flatten()
-        # Create neighborlist with this data as well. Do it here as there is
-        # no need to compute distances again.
-        d_sq = d_sq[:, self.O_i-self.N_H].flatten()
-        self.H_n = np.sort(np.argpartition(d_sq, self.n_list)[:self.n_list])
-        self.n_list_c = 0  # reset counter for neighborlist updating
+    #     self.O_i = O_i.flatten()
+    #     # Create neighborlist with this data as well. Do it here as there is
+    #     # no need to compute distances again.
+    #     d_sq = d_sq[:, self.O_i-self.N_H].flatten()
+    #     self.H_n = np.sort(np.argpartition(d_sq, self.n_list)[:self.n_list])
+    #     self.n_list_c = 0  # reset counter for neighborlist updating
 
-        if startup is False:
-            # Check which is the correct image of the particle that is reacted
-            # with And update the number of boundary passes that it has had.
-            # compute true displacement
-            dis = (x[O_i, :] - x[O_i_old, :] + self.L/2) % self.L - self.L/2
-            real_loc = x[O_i_old, :] + dis
-            self.shift += real_loc - x[O_i, :]
-            self.x_O_i = x[O_i, :]
+    #     if startup is False:
+    #         # Check which is the correct image of the particle that is reacted
+    #         # with And update the number of boundary passes that it has had.
+    #         # compute true displacement
+    #         dis = (x[O_i, :] - x[O_i_old, :] + self.L/2) % self.L - self.L/2
+    #         real_loc = x[O_i_old, :] + dis
+    #         self.shift += real_loc - x[O_i, :]
+    #         self.x_O_i = x[O_i, :]
 
     def find_O_i(self, n):
         """
