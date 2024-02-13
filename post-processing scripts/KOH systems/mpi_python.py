@@ -110,9 +110,9 @@ class Prot_Hop:
         self.N_OH = self.N_K  # intended number of OH- from input file
         self.N_H2O = self.N_O - self.N_OH
 
-    def find_O_i(self, n):
+    def recognize_molecules(self, n):
         """
-        Find the index of the Oxygen beloging to the OH-.
+        Find the index of the Oxygen beloging to the OH- or H2O.
 
         This function searches for the index of the Oxygen belonging to the OH-
         particles. It automatically creates a neighbor list as well as an array
@@ -123,57 +123,73 @@ class Prot_Hop:
         """
         if n == 0:  # Do a startup procedure
             self.OH = np.zeros((self.n_max, self.N_OH, 3))  # prepair the OH- position storage array
-            self.OH_i = np.zeros((self.n_max, self.N_OH))  # prepair for the OH- O index storage array
-            self.n_OH = np.zeros(self.n_max)  # prepair for real number of OH-
-            self.OH_shift = np.zeros((self.N_OH, 1, 3))  # prepair history shift list for pbc crossings
+            self.OH_i = np.zeros((self.n_max, self.N_OH), dtype='int')  # prepair for the OH- O index storage array
+            self.n_OH = np.zeros(self.n_max, dtype='int')  # prepair for real number of OH-
+            self.OH_shift = np.zeros((self.N_OH, 1, 3), dtype='int')  # prepair history shift list for pbc crossings
 
             self.H2O = np.zeros((self.n_max, self.N_H2O, 3))  # prepair the H2O position storage array
-            self.H2O_i = np.zeros((self.n_max, self.N_OH))  # prepair for the H2O O index storage array
-            self.n_H2O = np.zeros(self.n_max)  # prepair for real number of H2O
-            self.H2O_shifts = np.zeros((self.N_O-self.N_OH, 3))  # prepair history shift list for pbc crossings
+            self.H2O_i = np.zeros((self.n_max, self.N_H2O), dtype='int')  # prepair for the H2O O index storage array
+            self.n_H2O = np.zeros(self.n_max, dtype='int')  # prepair for real number of H2O
+            self.H2O_shift = np.zeros((self.N_O-self.N_OH, 3), dtype='int')  # prepair history shift list for pbc crossings
             
-            self.H3O_i = np.zeros(self.n_max)  # prepair for real number of H3O+ (should be 0)
+            self.n_H3O = np.zeros(self.n_max, dtype='int')  # prepair for real number of H3O+ (should be 0)
         
         counter_H_per_O = np.bincount(np.argmin(self.d_HO.reshape((self.N_H, self.N_O)), axis=1))  # Get number of H per oxygen in molecule
         
         # Identify and count all real OH-, H2O and H3O+
-        OH_i = np.where(counter_H_per_O == 1)
-        self.n_OH[n] = OH_i.shape[1]
-        H2O_i = np.where(counter_H_per_O == 2)
-        self.n_H2O[n] = H2O_i.shape[1]
-        H3O_i = np.where(counter_H_per_O == 3)
-        self.n_H3O[n] = H3O_i.shape[1]
+        OH_i = np.where(counter_H_per_O == 1)[0]
+        self.n_OH[n] = OH_i.shape[0]
+        H2O_i = np.where(counter_H_per_O == 2)[0]
+        self.n_H2O[n] = H2O_i.shape[0]
+        H3O_i = np.where(counter_H_per_O == 3)[0]
+        self.n_H3O[n] = H3O_i.shape[0]
         
         # Now start matching the correct molecules together
         if n == 0:
             # No matching needed, just filling the arrays correctly
-            self.OH_i = OH_i
-            self.OH[n, :, :] = self.pos_O[n, self.N_OH, :]
+            self.OH_i[n, :] = OH_i
+            self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :]
             
             
-            self.H2O_i = H2O_i
-            self.H2O[n, :, :] = self.pos_O[n, H2O_i, :]
+            self.H2O_i[n, :] = H2O_i
+            self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]
+            
+            self.OH_i_s = OH_i  # set this in the first timestep
         else:
             if OH_i == self.OH_i_s:  # No reaction occured only check PBC
                 self.OH_i[n, :] = self.OH_i[n-1, :]  # use origional sorting by using last version as nothing changed
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 
                 self.H2O_i[n, :] = self.H2O_i[n-1, :]  # use origional sorting by using last version as nothing changed
-                self.H2O[n, :, :] = self.pos_O[n, H2O_i, :]
-
+                self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
 
             elif self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                raise ValueError("Something went wrong, a H3O+ is created", "CPU rank=", self.rank)
+                raise ValueError("Something went wrong, a H3O+ is created",
+                                 "CPU rank=", self.rank)
             else:  # Normal reaction cases
+                # find which OH- belongs to which OH-. This is difficult because of sorting differences.
+                diff_new = np.setdiff1d(OH_i, self.OH_i[n-1, :], assume_unique=True)
+                diff_old = np.setdiff1d(self.OH_i[n-1, :], OH_i, assume_unique=True)
                 
-                self.OH_i_s = np.sort(self.OH_i[n, :])  # always sort after reaction or initiation to have cheap check.
+                self.OH_i[n, :] = self.OH_i[n-1, :]
+                for i in range(len(diff_new)):
+                    # Check every closest old version to every unmatching new one and replace the correct OH_i index
+                    r_OO = (self.pos_O[n, diff_new[i], :] - self.pos_O[n, diff_old, :] + self.L/2) % self.L - self.L/2               
+                    d2 = np.sum(r_OO**2, axis=1)
+                    i_n = np.argmin(np.sum(r_OO**2))
+                    if d2[i_n] > 9:  # excape when jump too large
+                        raise ValueError("Something went wrong, reaction jump too far, d = ", np.sqrt(d2[i_n]), 'Angstrom',
+                                         "CPU rank=", self.rank)
+                    
+                    self.OH_i[n, diff_old[i_n]==self.OH_i[n, :]] = diff_new[i]
+                self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
                 
         
     def loop_timesteps_all(self, n_samples=10, cheap=True):     # DEPRICATED, is slower and paralizes less
         # split the arrays up to per species description
-        pos_H = self.pos[:, self.H, :]
-        pos_O = self.pos[:, self.O, :]
-        pos_K = self.pos[:, self.K, :]
+        self.pos_H = self.pos[:, self.H, :]
+        self.pos_O = self.pos[:, self.O, :]
+        self.pos_K = self.pos[:, self.K, :]
 
         # Create per species-species interactions indexing arrays
         idx_HO = np.mgrid[0:self.N_H, 0:self.N_O].reshape(2, self.N_H*self.N_O)
@@ -184,25 +200,28 @@ class Prot_Hop:
             idx_HH = np.triu_indices(self.N_H, k=1)
             idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
 
-        for i in range(self.n_max):
+        for n in range(self.n_max):  # Loop over all timesteps
             # Calculate only OH distances for OH- recognition
-            r_HO = (pos_O[i, idx_HO[1], :] - pos_H[i, idx_HO[0], :] + self.L/2) % self.L - self.L/2
+            r_HO = (self.pos_O[n, idx_HO[1], :] - self.pos_H[n, idx_HO[0], :] + self.L/2) % self.L - self.L/2
             self.d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
             
-            self.find_O_i(i)
-            if i % n_samples == 0:
+            self.recognize_molecules(n)
+            if n % n_samples == 0:
                 # Calculate all other distances for RDF's and such when needed
-                r_OO = (pos_O[i, idx_OO[1], :] - pos_O[i, idx_OO[0], :] + self.L/2) % self.L - self.L/2
+                r_OO = (self.pos_O[n, idx_OO[1], :] - self.pos_O[n, idx_OO[0], :] + self.L/2) % self.L - self.L/2
                 self.d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
-                r_KO = (pos_O[i, idx_KO[1], :] - pos_K[i, idx_KO[0], :] + self.L/2) % self.L - self.L/2
+                
+                r_KO = (self.pos_O[n, idx_KO[1], :] - self.pos_K[n, idx_KO[0], :] + self.L/2) % self.L - self.L/2
                 self.d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
-                r_KK = (pos_K[i, idx_KK[1], :] - pos_K[i, idx_KK[0], :] + self.L/2) % self.L - self.L/2
+                
+                r_KK = (self.pos_K[n, idx_KK[1], :] - self.pos_K[n, idx_KK[0], :] + self.L/2) % self.L - self.L/2
                 self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
 
                 if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
-                    r_HH = (pos_H[i, idx_HH[1], :] - pos_H[:, idx_HH[0], :] + self.L/2) % self.L - self.L/2
+                    r_HH = (self.pos_H[n, idx_HH[1], :] - self.pos_H[n, idx_HH[0], :] + self.L/2) % self.L - self.L/2
                     self.d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
-                    r_HK = (pos_K[i, idx_HK[1], :] - pos_H[:, idx_HK[0], :] + self.L/2) % self.L - self.L/2
+                    
+                    r_HK = (self.pos_K[n, idx_HK[1], :] - self.pos_H[n, idx_HK[0], :] + self.L/2) % self.L - self.L/2
                     self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
             
             
