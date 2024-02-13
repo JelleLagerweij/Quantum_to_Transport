@@ -185,7 +185,15 @@ class Prot_Hop:
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
                 
         
-    def loop_timesteps_all(self, n_samples=10, cheap=True):     # DEPRICATED, is slower and paralizes less
+    def loop_timesteps_all(self, n_samples=10, cheap=True): 
+        """This function loops over all timesteps and tracks all over time properties
+        
+        The function tracks calls the molecule recognition function and the rdf functions when needed.
+
+        Args:
+            n_samples (int, optional): time between sampling rdfs. Defaults to 10.
+            cheap (bool, optional): skips less relevant interaction modes. Defaults to True.
+        """
         # split the arrays up to per species description
         self.pos_H = self.pos[:, self.H, :]
         self.pos_O = self.pos[:, self.O, :]
