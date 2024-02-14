@@ -38,17 +38,9 @@ class Prot_Hop:
         self.rank = self.comm.Get_rank()
 
         # Normal Startup Behaviour
-        # Initialize system on the main core
-        if self.rank == 0:
-            self.setting_properties_main(folder)
-        else:
-            self.pos_all_split = None  # create empty dumy on all cores
-            self.L = None
-            self.N = None
-
-        # Transport all chunks and properties to relavant arrays
-        self.setting_properties_all()
+        self.setting_properties_all(folder)  # all cores
         self.loop_timesteps_all()
+        self.stitching_together_all()
         self.test_combining()
 
     def setting_properties_main(self, folder):
@@ -79,13 +71,18 @@ class Prot_Hop:
         # 1. Load the stresses
         # 2. Load the energies
 
-    def setting_properties_all(self):
+    def setting_properties_all(self, folder):
         """
         Initializes system for all cores
 
         This function initializes the variables that need to be available to all cores
         """
-
+        if self.rank == 0:
+            self.setting_properties_main(folder)  # Initializes on main cores
+        else:
+            self.pos_all_split = None  # create empty dumy on all cores
+            self.L = None
+            self.N = None
         # Import the correct split position arrays
         self.pos = self.comm.scatter(self.pos_all_split, root=0)
         self.L = self.comm.bcast(self.L, root=0)
@@ -258,6 +255,44 @@ class Prot_Hop:
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
 
+    def stitching_together_all(self):
+        # prepair gethering on all cores 1) All OH- stuff
+        self.OH_i = self.comm.gather(self.OH_i, root=0)
+        self.OH = self.comm.gather(self.OH, root=0)
+        self.n_OH = self.comm.gather(self.n_OH, root=0)
+        self.OH_shift = self.comm.gather(self.OH_shift, root=0)
+        
+        # prepair gethering on all cores 1) All H2O stuff
+        self.H2O_i = self.comm.gather(self.H2O_i, root=0)
+        self.H2O = self.comm.gather(self.H2O, root=0)
+        self.n_H2O = self.comm.gather(self.n_H2O, root=0)
+        self.H2O_shift = self.comm.gather(self.H2O_shift, root=0)
+        
+        # prepair gethering on all cores 1) All H3O+ stuff
+        self.n_H3O = self.comm.gather(self.n_H3O, root=0)
+        
+        # RDF's
+        # TODO
+        
+        # Stich together correctly on main cores
+        if self.rank == 0:
+            self.stitching_together_main()
+
+        
+    def stitching_together_main(self):
+        # First handle arrays which do not need special conciderations
+        self.n_OH = np.concatenate(self.n_OH, axis=0)
+        self.n_H2O = np.concatenate(self.n_H2O, axis=0)
+        self.n_H3O = np.concatenate(self.n_H3O, axis=0)
+        
+        # NOW ADD 1 reaction recognition and 2 reordering
+        # for every end of 1 section check with start next one
+        for n in range(self.size-1):
+            diff_new = np.setdiff1d(self.OH_i[n+1][0], self.OH_i[n][-1], assume_unique=True)
+            diff_old = np.setdiff1d(self.OH_i[n][-1], self.OH_i[n+1][0], assume_unique=True) 
+        
+        self.OH_i = np.concatenate(self.OH_i, axis=0)
+        
     def test_combining(self):
         outputData = self.comm.gather(self.pos, root=0)
         if self.rank == 0:
