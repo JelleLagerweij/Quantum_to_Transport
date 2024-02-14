@@ -164,7 +164,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
 
             elif self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                raise ValueError("Something went wrong, a H3O+ is created",
+                raise ValueError("Something went wrong, a H3O+ is recognized",
                                  "CPU rank=", self.rank)
             else:  # Normal reaction cases
                 # find which OH- belongs to which OH-. This is difficult because of sorting differences.
@@ -173,15 +173,37 @@ class Prot_Hop:
                 
                 self.OH_i[n, :] = self.OH_i[n-1, :]
                 for i in range(len(diff_new)):
+                    ## HYDROXIDE PART
                     # Check every closest old version to every unmatching new one and replace the correct OH_i index
                     r_OO = (self.pos_O[n, diff_new[i], :] - self.pos_O[n, diff_old, :] + self.L/2) % self.L - self.L/2               
                     d2 = np.sum(r_OO**2, axis=1)
                     i_n = np.argmin(np.sum(r_OO**2))
+
                     if d2[i_n] > 9:  # excape when jump too large
                         raise ValueError("Something went wrong, reaction jump too far, d = ", np.sqrt(d2[i_n]), 'Angstrom',
                                          "CPU rank=", self.rank)
+
+                    idx_OH_i = np.where(self.OH_i[n-1, :] == diff_old[i_n]) # get index in OH_i storage list
+                    self.OH_i[n, idx_OH_i] = diff_new[i]  # update OH_i storage list
+
+                    # Adjust for different PBC shifts in reaction
+                    dis = (self.pos_O[n, self.OH_i[n, idx_OH_i], :] - self.pos_O[n-1, self.OH_i[n-1, idx_OH_i], :] + self.L/2) % self.L - self.L/2   # displacement vs old location
+                    real_loc =self.pos_O[n-1, self.OH_i[n-1, idx_OH_i], :] + dis
+                    self.OH_shift[idx_OH_i, :] += np.round(real_loc - self.pos_O[n, self.OH_i[n, idx_OH_i], :]).astype(int)  # Correct shifting update for index
+                
+                    ## WATER PART
+                    # We already know the exchange of atomic indexes, now find the array location in the water list (logic is reversed)
+                    idx_H2O_i = np.where(self.H2O_i[n-1, :] == diff_new[i])  # New OH- was old H2O
+                    self.H2O_i[n, idx_H2O_i] = diff_old[i_n]  # Therefore new H2O is old OH-
                     
-                    self.OH_i[n, diff_old[i_n]==self.OH_i[n, :]] = diff_new[i]
+                    # Adjust for different PBC shifts in reaction
+                    dis = (self.pos_O[n, self.H2O_i[n, idx_H2O_i], :] - self.pos_O[n-1, self.H2O_i[n-1, idx_H2O_i], :] + self.L/2) % self.L - self.L/2   # displacement vs old location
+                    real_loc =self.pos_O[n-1, self.H2O_i[n-1, idx_H2O_i], :] + dis
+                    self.H2O_shift[idx_H2O_i, :] += np.round(real_loc - self.pos_O[n, self.H2O_i[n, idx_H2O_i], :]).astype(int)  # Correct shifting update for index
+                
+                # Update all the positions
+                self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
+                self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
                 
         
