@@ -288,10 +288,24 @@ class Prot_Hop:
         # NOW ADD 1 reaction recognition and 2 reordering
         # for every end of 1 section check with start next one
         for n in range(self.size-1):
-            diff_new = np.setdiff1d(self.OH_i[n+1][0], self.OH_i[n][-1], assume_unique=True)
-            diff_old = np.setdiff1d(self.OH_i[n][-1], self.OH_i[n+1][0], assume_unique=True) 
-        
-        self.OH_i = np.concatenate(self.OH_i, axis=0)
+            mismatch_indices = np.where(self.OH_i[0][-1, :] != self.OH_i[1][0, :])[0]
+
+            # Swap columns in C_modified based on the mismatch
+            for index in mismatch_indices:
+                # Find the index in B corresponding to the value in A
+                b_index = np.where(self.OH_i[1][0, :] == self.OH_i[0][-1, index])[0]
+            
+                if b_index.size == 0:
+                    print('skip, implement reaction here')
+                elif b_index[0] == index:
+                    print('nothing to do')
+                else:
+                    print('no skip')
+                    # Get the range of columns to swap based on the difference in mismatched indices
+                    # Swap the columns
+                    self.OH_i[1][:, [index, b_index[0]]] = self.OH_i[1][:, [b_index[0], index]]
+
+                self.OH_i = np.concatenate(self.OH_i, axis=0)
         
     def test_combining(self):
         outputData = self.comm.gather(self.pos, root=0)
