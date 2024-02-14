@@ -205,8 +205,7 @@ class Prot_Hop:
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
-                
-        
+   
     def loop_timesteps_all(self, n_samples=10, cheap=True): 
         """This function loops over all timesteps and tracks all over time properties
         
@@ -265,7 +264,10 @@ class Prot_Hop:
             outputData = np.concatenate(outputData,axis = 0)
             print('Combining again is', np.array_equal(outputData, self.pos_all))
             print('time to completion',  time.time() - self.tstart)
-
+            
+            plt.figure()
+            plt.plot(self.OH_i + self.N_H)
+            plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_mpi.png')
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
