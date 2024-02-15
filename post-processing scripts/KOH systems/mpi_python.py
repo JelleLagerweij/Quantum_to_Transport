@@ -122,7 +122,7 @@ class Prot_Hop:
             self.OH = np.zeros((self.n_max, self.N_OH, 3))  # prepair the OH- position storage array
             self.OH_i = np.zeros((self.n_max, self.N_OH), dtype='int')  # prepair for the OH- O index storage array
             self.n_OH = np.zeros(self.n_max, dtype='int')  # prepair for real number of OH-
-            self.OH_shift = np.zeros((self.N_OH, 1, 3), dtype='int')  # prepair history shift list for pbc crossings
+            self.OH_shift = np.zeros((self.N_OH, 3), dtype='int')  # prepair history shift list for pbc crossings
 
             self.H2O = np.zeros((self.n_max, self.N_H2O, 3))  # prepair the H2O position storage array
             self.H2O_i = np.zeros((self.n_max, self.N_H2O), dtype='int')  # prepair for the H2O O index storage array
@@ -185,8 +185,8 @@ class Prot_Hop:
 
                     # Adjust for different PBC shifts in reaction
                     dis = (self.pos_O[n, self.OH_i[n, idx_OH_i], :] - self.pos_O[n-1, self.OH_i[n-1, idx_OH_i], :] + self.L/2) % self.L - self.L/2   # displacement vs old location
-                    real_loc =self.pos_O[n-1, self.OH_i[n-1, idx_OH_i], :] + dis
-                    self.OH_shift[idx_OH_i, :] += np.round(real_loc - self.pos_O[n, self.OH_i[n, idx_OH_i], :]).astype(int)  # Correct shifting update for index
+                    real_loc = self.pos_O[n-1, self.OH_i[n-1, idx_OH_i], :] + dis
+                    self.OH_shift[idx_OH_i, :] += np.round((real_loc - self.pos_O[n, self.OH_i[n, idx_OH_i], :])/self.L).astype(int)  # Correct shifting update for index
                 
                     ## WATER PART
                     # We already know the exchange of atomic indexes, now find the array location in the water list (logic is reversed)
@@ -228,6 +228,8 @@ class Prot_Hop:
 
         for n in range(self.n_max):  # Loop over all timesteps
             # Calculate only OH distances for OH- recognition
+            if n == 4497:
+                p = 'pauze'
             r_HO = (self.pos_O[n, idx_HO[1], :] - self.pos_H[n, idx_HO[0], :] + self.L/2) % self.L - self.L/2
             self.d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
             
@@ -281,19 +283,19 @@ class Prot_Hop:
         
     def stitching_together_main(self):
         # First handle arrays which do not need special conciderations
-        self.n_OH = np.concatenate(self.n_OH, axis=0)
+        
         self.n_H2O = np.concatenate(self.n_H2O, axis=0)
         self.n_H3O = np.concatenate(self.n_H3O, axis=0)
         
         # NOW ADD 1 reaction recognition and 2 reordering
         # for every end of 1 section check with start next one
         for n in range(self.size-1):
-            mismatch_indices = np.where(self.OH_i[0][-1, :] != self.OH_i[1][0, :])[0]
+            mismatch_indices = np.where(self.OH_i[n][-1, :] != self.OH_i[n+1][0, :])[0]
 
             # Swap columns in C_modified based on the mismatch
             for index in mismatch_indices:
                 # Find the index in B corresponding to the value in A
-                b_index = np.where(self.OH_i[1][0, :] == self.OH_i[0][-1, index])[0]
+                b_index = np.where(self.OH_i[n+1][0, :] == self.OH_i[n][-1, index])[0]
             
                 if b_index.size == 0:
                     print('skip, implement reaction here')
@@ -302,11 +304,21 @@ class Prot_Hop:
                 else:
                     print('no skip')
                     # Get the range of columns to swap based on the difference in mismatched indices
-                    # Swap the columns
-                    self.OH_i[1][:, [index, b_index[0]]] = self.OH_i[1][:, [b_index[0], index]]
-
-                self.OH_i = np.concatenate(self.OH_i, axis=0)
+                    # Swap the columns of OH index, OH position and the OH_shift arrays
+                    self.OH_i[n+1][:, [index, b_index[0]]] = self.OH_i[n+1][:, [b_index[0], index]]
+                    self.OH[n+1][:, [index, b_index[0]], :] = self.OH[n+1][:, [b_index[0], index], :]
+                    self.OH_shift[n+1][[index, b_index[0]], :] = self.OH_shift[n+1][[b_index[0], index], :]
+            
+            # Now adjust for passing PBC in the shift collumns.
+            self.OH[n+1][:, :, :] += self.L*self.OH_shift[n][:, :]
+            self.OH_shift[n+1][:, :] += self.OH_shift[n][:, :]
         
+        # Combining adjusted arrays back to the right shape
+        self.OH = np.concatenate(self.OH, axis=0)
+        self.OH_i = np.concatenate(self.OH_i, axis=0)
+        self.n_OH = np.concatenate(self.n_OH, axis=0)
+        
+                
     def test_combining(self):
         outputData = self.comm.gather(self.pos, root=0)
         if self.rank == 0:
@@ -315,8 +327,15 @@ class Prot_Hop:
             print('time to completion',  time.time() - self.tstart)
             
             plt.figure()
-            plt.plot(self.OH_i + self.N_H)
+            plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
+            for i in range(1, self.size):
+                plt.axvline(x = self.pos_O.shape[0]*i, color = 'c')
+            
+            plt.xlim(0, self.size*self.pos_O.shape[0])
+            plt.legend()
+            
             plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_mpi.png')
+            print(self.OH[:, 0, 0].argmax())
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
