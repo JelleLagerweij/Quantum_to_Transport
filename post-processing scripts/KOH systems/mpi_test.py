@@ -18,6 +18,7 @@ if rank == 0:
     print(sendbuf, type(sendbuf))
 else:
     print(sendbuf)
+
 # if rank == 0:
 #     sendbuf = np.arange(size*n_array)
 #     print(sendbuf, type(sendbuf), sendbuf.shape)

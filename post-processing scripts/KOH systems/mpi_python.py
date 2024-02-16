@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import freud
 from py4vasp import Calculation
 from mpi4py import MPI
+import sys
 import time
 
 class Prot_Hop:
@@ -36,6 +37,7 @@ class Prot_Hop:
         self.comm = MPI.COMM_WORLD
         self.size = self.comm.Get_size()
         self.rank = self.comm.Get_rank()
+        self.error_flag = 0
 
         # Normal Startup Behaviour
         self.setting_properties_all(folder)  # all cores
@@ -153,7 +155,7 @@ class Prot_Hop:
             
             self.OH_i_s = OH_i  # set this in the first timestep
         else:
-            if OH_i == self.OH_i_s:  # No reaction occured only check PBC
+            if (OH_i == self.OH_i_s).all():  # No reaction occured only check PBC
                 self.OH_i[n, :] = self.OH_i[n-1, :]  # use origional sorting by using last version as nothing changed
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 
@@ -161,8 +163,14 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
 
             elif self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                raise ValueError("Something went wrong, a H3O+ is recognized",
-                                 "CPU rank=", self.rank)
+                if self.rank != 0:
+                    self.comm.send(self.error_flag, root=0)
+                else:
+                    for i in range(self.size):
+                        error_flag = self.comm.recv(source=i)
+                        if error_flag:
+                            print(f"Error occured, H3O+ created")
+                            MPI.Abbort(self.comm, 1)
             else:  # Normal reaction cases
                 # find which OH- belongs to which OH-. This is difficult because of sorting differences.
                 diff_new = np.setdiff1d(OH_i, self.OH_i[n-1, :], assume_unique=True)
@@ -228,8 +236,6 @@ class Prot_Hop:
 
         for n in range(self.n_max):  # Loop over all timesteps
             # Calculate only OH distances for OH- recognition
-            if n == 4497:
-                p = 'pauze'
             r_HO = (self.pos_O[n, idx_HO[1], :] - self.pos_H[n, idx_HO[0], :] + self.L/2) % self.L - self.L/2
             self.d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
             
@@ -339,5 +345,5 @@ class Prot_Hop:
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
