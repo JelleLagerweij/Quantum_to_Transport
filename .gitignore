@@ -58,3 +58,6 @@ target/
 
 # VSCODE
 .vscode/
+
+*.npz
+*.h5
