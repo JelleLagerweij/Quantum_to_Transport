@@ -64,11 +64,25 @@ class Prot_Hop:
                            data['elements'].count(self.species[1]),
                            data['elements'].count(self.species[2])])
 
-        # Calculate the number of intended OH- ions
+        # split array up
         self.L = data['lattice_vectors'][0, 0, 0]
         self.pos_all = self.L*data['positions']
         self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
-
+        
+        # calculate chunk sizes for communication
+        self.chunks = [int]*self.size
+        self.steps_split = [None]*self.size
+        sta = 0
+        for i in range(self.size):
+            self.chunks[i] = len(self.pos_all_split[i][:, 0])
+            sto = sta + len(self.pos_all_split[i][:, 0])
+            self.steps_split[i] = np.arange(start=sta, stop=sto)
+            sta = sto + 1
+        
+        # self.steps = np.arange(self.pos_all.shape[0])
+        # print(self.steps.size)
+        # self.steps_split = np.array_split(self.pos_all, self.size)
+        # print(self.steps.size)
         # Todo lateron:
         # 1. Load the stresses
         # 2. Load the energies
@@ -82,19 +96,14 @@ class Prot_Hop:
         if self.rank == 0:
             self.setting_properties_main(folder)  # Initializes on main cores
         else:
-            self.pos_all_split = None  # create empty dumy on all cores
-            self.L = None
-            self.N = None
-        # Import the correct split position arrays
-        self.pos = self.comm.scatter(self.pos_all_split, root=0)
+            self.chunks = [None]*self.size
+            self.L = float
+            self.N = int
+        
+        self.chunks = self.comm.bcast(self.chunks, root=0)
         self.L = self.comm.bcast(self.L, root=0)
         self.N = self.comm.bcast(self.N, root=0)
-
-        self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
-        if self.rank == 0:
-            print('Rank', self.rank, "number timesteps", self.n_max)
-            print('Time after communication', time.time() - self.tstart)
-
+        
         # Asses the number of Hydrogens
         self.N_tot = np.sum(self.N)
         self.N_H = self.N[self.species.index('H')]
@@ -108,6 +117,20 @@ class Prot_Hop:
         # Calculate and initiate the OH- tracking
         self.N_OH = self.N_K  # intended number of OH- from input file
         self.N_H2O = self.N_O - self.N_OH
+        
+        if self.rank != 0:
+            self.pos_all_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
+            self.steps_split = [np.empty(self.chunks[i]) for i in range(self.size)]
+
+        # Import the correct split position arrays
+        self.pos = self.comm.scatter(self.pos_all_split, root=0)
+        self.steps = self.comm.scatter(self.steps_split, root=0)
+
+        self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
+        if self.rank == 0:
+            # print('Rank', self.rank, "number timesteps", self.n_max)
+            print('Time after communication', time.time() - self.tstart)
+
 
     def recognize_molecules(self, n):
         """
@@ -160,18 +183,19 @@ class Prot_Hop:
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 
                 self.H2O_i[n, :] = self.H2O_i[n-1, :]  # use origional sorting by using last version as nothing changed
-                self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
+                self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :] + self.L*self.H2O_shift
 
             else:  # Normal reaction cases
                 # find which OH- belongs to which OH-. This is difficult because of sorting differences.
                 
                 if self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                    print(f"Error occured, H3O+ created. Rank", self.rank, 'timestep ', n)
+                    print(f"Strange behaviour found, H3O+ created. Rank", self.rank, 'timestep ', self.steps[n])
 
                 diff_new = np.setdiff1d(OH_i, self.OH_i[n-1, :], assume_unique=True)
                 diff_old = np.setdiff1d(self.OH_i[n-1, :], OH_i, assume_unique=True)
                 
                 self.OH_i[n, :] = self.OH_i[n-1, :]
+                self.H2O_i[n, :] = self.H2O_i[n-1, :]
                 for i in range(len(diff_old)):
                     ## HYDROXIDE PART
                     # Check every closest old version to every unmatching new one and replace the correct OH_i index
@@ -180,8 +204,8 @@ class Prot_Hop:
                     i_n = np.argmin(d2)  # find new OH- index
 
                     if d2[i_n] > 9:  # excape when jump too large
-                        raise ValueError("Something went wrong, reaction jump too far, d = ", np.sqrt(d2[i_n]), 'Angstrom',
-                                         "CPU rank=", self.rank)
+                        print("Strange behaviour found, reaction jump too far, d = ", np.sqrt(d2[i_n]), 'Angstrom',
+                                        "CPU rank=", self.rank, 'timestep', self.steps[n])
 
                     idx_OH_i = np.where(self.OH_i[n-1, :] == diff_old[i]) # get index in OH_i storage list
                     self.OH_i[n, idx_OH_i] = diff_new[i_n]  # update OH_i storage list
@@ -203,7 +227,7 @@ class Prot_Hop:
                 
                 # Update all the positions
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
-                self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
+                self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
    
     def loop_timesteps_all(self, n_samples=10, cheap=True): 
@@ -324,7 +348,6 @@ class Prot_Hop:
         outputData = self.comm.gather(self.pos, root=0)
         if self.rank == 0:
             outputData = np.concatenate(outputData,axis = 0)
-            print('Combining again is', np.array_equal(outputData, self.pos_all))
             print('time to completion',  time.time() - self.tstart)
             
             plt.figure()
@@ -336,8 +359,7 @@ class Prot_Hop:
             plt.xlim(0, self.size*self.pos_O.shape[0])
             plt.legend()
             
-            plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_serial.png')
-            print(self.OH[:, 0, 0].argmax())
+            plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_mpi.png')
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
