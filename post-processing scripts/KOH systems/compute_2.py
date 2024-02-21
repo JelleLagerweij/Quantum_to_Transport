@@ -98,7 +98,7 @@ plt.rcParams['ytick.labelsize'] = 20
 plt.rcParams['legend.fontsize'] = 20
 
 # # figures = r'C:\Users\Jelle\Delft University of Technology\Jelle Lagerweij Master - Documents\General\Personal Thesis files\01 Defence Presentation\Figures'
-figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_6\figures'
+# figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_6\figures'
 # plt.rcParams['savefig.directory'] = figures
 # Done
 
@@ -106,14 +106,12 @@ figures = r'C:\Users\Jelle\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_
 
 ###############################################################################
 
-path = ['../../../RPBE_Production/AIMD/10ps/',
-        '../../../RPBE_Production/MLMD/100ps_2/',
-        '../../../RPBE_Production/MLMD/100ps_Exp_Density/',
-        '../../../RPBE_Production/MLMD/10ns/']
+path = [r'C:/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/',
+        r'C:/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_2/',
+        r'C:/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/',
+        r'C:/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/10ns/']
 
-folder = ['i_1', 'i_2', 'i_3', 'i_4', 'i_5']
-path_s = '../../../RPBE_Production/MLMD/100ps_Exp_Density/'
-ediff = np.array([5, 6])
+folder = [r'i_1'] #, 'i_2', 'i_3', 'i_4', 'i_5']
 
 n_KOH = 1
 n_H2O = 110
@@ -139,138 +137,139 @@ n_HO = np.zeros(len(folder))
 n_KO = np.zeros(len(folder))
 hists_s = np.zeros(100)
 
-for j in range(len(ediff)):
-    path = path_s + str(ediff[j]) + '/'
-    for i in range(len(folder)):
-        Traj = hop.Prot_Hop(path+folder[i], dt=10*1e-16)
-        index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
-        # hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
 
-        # hists_s += hist/len(folder)
-        
+j=2
+for i in range(len(folder)):
+    Traj = hop.Prot_Hop(path[j]+folder[i], dt=10*1e-16)
+    index, loc_OH, loc_K, loc_H2O = Traj.loading()  # load postprocessed trajectory
+    # hist, bins = Traj.react_time(plotting=True, n_bins=100, range=500)
 
-        # visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
+    # hists_s += hist/len(folder)
+    
 
-        # r, rdfs, n_conf = Traj.rdf(interpol=64, plotting=False,
-        #                            r_end=[4.2, 3.3, 3.5])
-        # n_OO[i], n_HO[i], n_KO[i] = n_conf
-        # OO[i, :], HO[i, :], KO[i, :] = rdfs
+    # visc[i, :] = Traj.viscosity(cubicspline=10, plotting=True, padding=0)
 
-        # d_OO[i] = r[np.argmax(OO[i, :])]
-        # d_HO[i] = r[np.argmax(HO[i, :])]
-        # d_KO[i] = r[np.argmax(KO[i, :])]
+    # r, rdfs, n_conf = Traj.rdf(interpol=64, plotting=False,
+    #                            r_end=[4.2, 3.3, 3.5])
+    # n_OO[i], n_HO[i], n_KO[i] = n_conf
+    # OO[i, :], HO[i, :], KO[i, :] = rdfs
 
-        # sanity checks
-        name = 'ediff= 10^-' + str(ediff[j]) 
-        # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
-        press[i, :] = Traj.pressure(plotting=True, filter_width=0, skip=1, name=name)
-        e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=0, skip=1, name=name)
-        e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=0, skip=1, name=name)
-        e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=0, skip=1, name=name)
-        Temp[i, :] = Traj.temperature(plotting=True, filter_width=0, skip=1, name=name)
-        E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=0, skip=1, name=name)
+    # d_OO[i] = r[np.argmax(OO[i, :])]
+    # d_HO[i] = r[np.argmax(HO[i, :])]
+    # d_KO[i] = r[np.argmax(KO[i, :])]
 
-        # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
-        # msdK = Traj.windowed_MSD(loc_K, n_KOH)
-        # msdH2O = Traj.windowed_MSD(loc_H2O, n_H2O)
+    # sanity checks
+    name = 'dumb'
+    # ave_beef, ave_bees = Traj.bayes_error(plotting=True, move_ave=2500)
+    press[i, :] = Traj.pressure(plotting=True, filter_width=0, skip=1, name=name)
+    e_kin[i, :] = Traj.kin_energy(plotting=True, filter_width=0, skip=1, name=name)
+    e_pot[i, :] = Traj.pot_energy(plotting=True, filter_width=0, skip=1, name=name)
+    e_tot[i, :] = Traj.tot_energy(plotting=True, filter_width=0, skip=1, name=name)
+    Temp[i, :] = Traj.temperature(plotting=True, filter_width=0, skip=1, name=name)
+    E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=0, skip=1, name=name)
 
-        # # t = np.arange(len(Traj.t))
+    # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
+    # msdK = Traj.windowed_MSD(loc_K, n_KOH)
+    # msdH2O = Traj.windowed_MSD(loc_H2O, n_H2O)
 
-        # multiple window loglog
-        # plt.figure('multiple window loglog OH')
-        # plt.loglog(Traj.t[1:]*1e12, msdOH[1:], label=folder[i])
+    # # t = np.arange(len(Traj.t))
 
-        # # multiple window loglog
-        # plt.figure('multiple window loglog K')
-        # plt.loglog(Traj.t[1:]*1e12, msdK[1:], label=folder[i])
+    # multiple window loglog
+    # plt.figure('multiple window loglog OH')
+    # plt.loglog(Traj.t[1:]*1e12, msdOH[1:], label=folder[i])
 
-        # # multiple window loglog
-        # plt.figure('multiple window loglog H2O')
-        # plt.loglog(Traj.t[1:]*1e12, msdH2O[1:], label=folder[i])
+    # # multiple window loglog
+    # plt.figure('multiple window loglog K')
+    # plt.loglog(Traj.t[1:]*1e12, msdK[1:], label=folder[i])
 
-        # plt.figure('OH index')
-        # plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
+    # # multiple window loglog
+    # plt.figure('multiple window loglog H2O')
+    # plt.loglog(Traj.t[1:]*1e12, msdH2O[1:], label=folder[i])
 
-        # n = np.arange(start=1000, stop=len(Traj.t), step=100)
-        # n = np.arange(start=10000, stop=len(Traj.t), step=100)
-        # t_test = Traj.t[n]
-        # MSD_test = msdOH[n]
-        # diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
-        # MSD_test = msdK[n]
-        # diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
-        # MSD_test = msdH2O[n]
-        # diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
+    plt.figure('OH index')
+    plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
+    plt.savefig('index_OH_old.png')
 
-        # plt.figure('Number OH-')
-        # plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
+    # n = np.arange(start=1000, stop=len(Traj.t), step=100)
+    # n = np.arange(start=10000, stop=len(Traj.t), step=100)
+    # t_test = Traj.t[n]
+    # MSD_test = msdOH[n]
+    # diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    # MSD_test = msdK[n]
+    # diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    # MSD_test = msdH2O[n]
+    # diff_H2O[i] = Traj.diffusion(MSD_test, n_H2O, t=t_test, plotting=True)
 
-        # plt.figure('Number H3O+')
-        # plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
+    # plt.figure('Number OH-')
+    # plt.plot(Traj.t*1e12, Traj.N_OH, label=folder[i])
 
-        # plt.figure('Number H2O')
-        # plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
+    # plt.figure('Number H3O+')
+    # plt.plot(Traj.t*1e12, Traj.N_H3O, label=folder[i])
 
-    #     plt.figure('xyz OH-')
-    #     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 0], label='x')
-    #     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 1], label='y')
-    #     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 2], label='z')
+    # plt.figure('Number H2O')
+    # plt.plot(Traj.t*1e12, Traj.N_H2O, label=folder[i])
 
-    #     plt.figure('stepsize')
-    #     step = Traj.O_loc_stored[1:, :, :] - Traj.O_loc_stored[:-1, :, :]
-    #     dis = np.linalg.norm(step, axis=2)
-    #     plt.plot(Traj.t[:-1]*1e12, dis, label=folder[i])
+#     plt.figure('xyz OH-')
+#     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 0], label='x')
+#     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 1], label='y')
+#     plt.plot(Traj.t*1e12, Traj.O_loc_stored[:, :, 2], label='z')
+
+#     plt.figure('stepsize')
+#     step = Traj.O_loc_stored[1:, :, :] - Traj.O_loc_stored[:-1, :, :]
+#     dis = np.linalg.norm(step, axis=2)
+#     plt.plot(Traj.t[:-1]*1e12, dis, label=folder[i])
 
 
-    # # rdfs= np.array([r, np.mean(OO, axis=0), np.std(OO, axis=0),
-    # #                 np.mean(HO, axis=0), np.std(HO, axis=0),
-    # #                 np.mean(KO, axis=0), np.std(KO, axis=0)])
-    # # np.save(path+'rdfs.npy', rdfs)
+# # rdfs= np.array([r, np.mean(OO, axis=0), np.std(OO, axis=0),
+# #                 np.mean(HO, axis=0), np.std(HO, axis=0),
+# #                 np.mean(KO, axis=0), np.std(KO, axis=0)])
+# # np.save(path+'rdfs.npy', rdfs)
 
-    # Create directory for figures
-path = figures + "/long_ediff"
-os.mkdir(path)
-t_max = max(Traj.t)*1e12
-plt.figure('pressure')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$P$/[\si{\bar}]')
-plt.xlim(0, t_max)
-plt.legend()
-plt.savefig(path + '/pressure')
+# Create directory for figures
+# path = figures + "/long_ediff"
+# os.mkdir(path)
+# t_max = max(Traj.t)*1e12
+# plt.figure('pressure')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$P$/[\si{\bar}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(path + '/pressure')
 
-plt.figure('kinetic energy')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$E_\text{kin}$/[\si{\eV}]')
-plt.xlim(0, t_max)
-plt.legend()
-plt.savefig(path + '/kinetic energy')
+# plt.figure('kinetic energy')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$E_\text{kin}$/[\si{\eV}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(path + '/kinetic energy')
 
-plt.figure('potential energy')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$E_\text{pot}$/[\si{\eV}]')
-plt.xlim(0, t_max)
-plt.legend()
-plt.savefig(path + '/potential energy')
+# plt.figure('potential energy')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$E_\text{pot}$/[\si{\eV}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(path + '/potential energy')
 
-plt.figure('total energy')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$E_\text{tot}$/[\si{\eV}]')
-plt.xlim(0, t_max)
-plt.legend()
-plt.savefig(path + '/total energy')
+# plt.figure('total energy')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$E_\text{tot}$/[\si{\eV}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(path + '/total energy')
 
-plt.figure('temperature')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$T$/[\si{\K}]')
-plt.xlim(0, t_max)
-plt.legend()
-plt.savefig(path + '/temperature')
+# plt.figure('temperature')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$T$/[\si{\K}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(path + '/temperature')
 
-plt.figure('pseudo hamiltonian')
-plt.xlabel(r'$t$/[\si{\ps}]')
-plt.ylabel(r'$E_\text{p-ham}$/[\si{\eV}]')
-plt.xlim(0, t_max)
-plt.legend()
-plt.savefig(path + '/pseudo hamiltonian')
+# plt.figure('pseudo hamiltonian')
+# plt.xlabel(r'$t$/[\si{\ps}]')
+# plt.ylabel(r'$E_\text{p-ham}$/[\si{\eV}]')
+# plt.xlim(0, t_max)
+# plt.legend()
+# plt.savefig(path + '/pseudo hamiltonian')
 
 # # plt.figure('BEEF')
 # # plt.xlabel('time in/[ps]')

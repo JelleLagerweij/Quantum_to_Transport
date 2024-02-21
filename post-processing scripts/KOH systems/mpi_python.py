@@ -162,34 +162,29 @@ class Prot_Hop:
                 self.H2O_i[n, :] = self.H2O_i[n-1, :]  # use origional sorting by using last version as nothing changed
                 self.H2O[n, :, :] = self.pos_O[n, H2O_i, :] + self.L*self.H2O_shift
 
-            elif self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                if self.rank != 0:
-                    self.comm.send(self.error_flag, root=0)
-                else:
-                    for i in range(self.size):
-                        error_flag = self.comm.recv(source=i)
-                        if error_flag:
-                            print(f"Error occured, H3O+ created")
-                            MPI.Abbort(self.comm, 1)
             else:  # Normal reaction cases
                 # find which OH- belongs to which OH-. This is difficult because of sorting differences.
+                
+                if self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
+                    print(f"Error occured, H3O+ created. Rank", self.rank, 'timestep ', n)
+
                 diff_new = np.setdiff1d(OH_i, self.OH_i[n-1, :], assume_unique=True)
                 diff_old = np.setdiff1d(self.OH_i[n-1, :], OH_i, assume_unique=True)
                 
                 self.OH_i[n, :] = self.OH_i[n-1, :]
-                for i in range(len(diff_new)):
+                for i in range(len(diff_old)):
                     ## HYDROXIDE PART
                     # Check every closest old version to every unmatching new one and replace the correct OH_i index
-                    r_OO = (self.pos_O[n, diff_new[i], :] - self.pos_O[n, diff_old, :] + self.L/2) % self.L - self.L/2               
+                    r_OO = (self.pos_O[n, diff_new, :] - self.pos_O[n, diff_old[i], :] + self.L/2) % self.L - self.L/2               
                     d2 = np.sum(r_OO**2, axis=1)
-                    i_n = np.argmin(np.sum(r_OO**2))
+                    i_n = np.argmin(d2)  # find new OH- index
 
                     if d2[i_n] > 9:  # excape when jump too large
                         raise ValueError("Something went wrong, reaction jump too far, d = ", np.sqrt(d2[i_n]), 'Angstrom',
                                          "CPU rank=", self.rank)
 
-                    idx_OH_i = np.where(self.OH_i[n-1, :] == diff_old[i_n]) # get index in OH_i storage list
-                    self.OH_i[n, idx_OH_i] = diff_new[i]  # update OH_i storage list
+                    idx_OH_i = np.where(self.OH_i[n-1, :] == diff_old[i]) # get index in OH_i storage list
+                    self.OH_i[n, idx_OH_i] = diff_new[i_n]  # update OH_i storage list
 
                     # Adjust for different PBC shifts in reaction
                     dis = (self.pos_O[n, self.OH_i[n, idx_OH_i], :] - self.pos_O[n-1, self.OH_i[n-1, idx_OH_i], :] + self.L/2) % self.L - self.L/2   # displacement vs old location
@@ -198,8 +193,8 @@ class Prot_Hop:
                 
                     ## WATER PART
                     # We already know the exchange of atomic indexes, now find the array location in the water list (logic is reversed)
-                    idx_H2O_i = np.where(self.H2O_i[n-1, :] == diff_new[i])  # New OH- was old H2O
-                    self.H2O_i[n, idx_H2O_i] = diff_old[i_n]  # Therefore new H2O is old OH-
+                    idx_H2O_i = np.where(self.H2O_i[n-1, :] == diff_new[i_n])  # New OH- was old H2O
+                    self.H2O_i[n, idx_H2O_i] = diff_old[i]  # Therefore new H2O is old OH-
                     
                     # Adjust for different PBC shifts in reaction
                     dis = (self.pos_O[n, self.H2O_i[n, idx_H2O_i], :] - self.pos_O[n-1, self.H2O_i[n-1, idx_H2O_i], :] + self.L/2) % self.L - self.L/2   # displacement vs old location
@@ -333,14 +328,15 @@ class Prot_Hop:
             print('time to completion',  time.time() - self.tstart)
             
             plt.figure()
-            plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
+            # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
+            plt.plot(self.OH_i, label='OH- index ')
             for i in range(1, self.size):
                 plt.axvline(x = self.pos_O.shape[0]*i, color = 'c')
             
             plt.xlim(0, self.size*self.pos_O.shape[0])
             plt.legend()
             
-            plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_mpi.png')
+            plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_serial.png')
             print(self.OH[:, 0, 0].argmax())
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)

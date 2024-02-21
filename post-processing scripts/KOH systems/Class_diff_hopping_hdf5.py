@@ -912,7 +912,8 @@ class Prot_Hop:
 
 
     def loading(self):
-        loaded = np.load(self.folder + '/traj.npz')
+        print('loading file with path = ', self.folder + 'traj.npz')
+        loaded = np.load(self.folder + 'traj.npz')
         index = loaded['index']
         self.index = index
         loc_OH = loaded['loc_OH']
