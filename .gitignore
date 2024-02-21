@@ -59,5 +59,6 @@ target/
 # VSCODE
 .vscode/
 
+# Large compressed file formats
 *.npz
 *.h5
