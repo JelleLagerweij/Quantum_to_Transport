@@ -19,7 +19,7 @@ folder = ['i_1']  # , 'i_2'] #, 'i_3', 'i_4', 'i_5']
 n_KOH = 1
 n_H2O = 110
 
-j = 2
+j = 0
 for i in range(len(folder)):
     Traj = hop.Prot_Hop(path[j]+folder[i], dt=5*1e-16)
     reaction_rate, index, loc_OH = Traj.track_OH(rdf=[32, 2, 5])
