@@ -307,29 +307,18 @@ class Prot_Hop:
 
         
     def stitching_together_main(self):
-        # First handle arrays which do not need special conciderations
-        
-        self.n_H2O = np.concatenate(self.n_H2O, axis=0)
-        self.n_H3O = np.concatenate(self.n_H3O, axis=0)
-        
         # NOW ADD 1 reaction recognition and 2 reordering
         # for every end of 1 section check with start next one
         for n in range(self.size-1):
+            # OH-
             mismatch_indices = np.where(self.OH_i[n][-1, :] != self.OH_i[n+1][0, :])[0]
-
             # Swap columns in C_modified based on the mismatch
             for index in mismatch_indices:
                 # Find the index in B corresponding to the value in A
                 b_index = np.where(self.OH_i[n+1][0, :] == self.OH_i[n][-1, index])[0]
-            
                 if b_index.size == 0:
-                    print('skip, implement reaction here')
-                elif b_index[0] == index:
-                    print('nothing to do')
+                    print('CHECK: Reaction occured on stitching back together')
                 else:
-                    print('no skip')
-                    # Get the range of columns to swap based on the difference in mismatched indices
-                    # Swap the columns of OH index, OH position and the OH_shift arrays
                     self.OH_i[n+1][:, [index, b_index[0]]] = self.OH_i[n+1][:, [b_index[0], index]]
                     self.OH[n+1][:, [index, b_index[0]], :] = self.OH[n+1][:, [b_index[0], index], :]
                     self.OH_shift[n+1][[index, b_index[0]], :] = self.OH_shift[n+1][[b_index[0], index], :]
@@ -337,31 +326,69 @@ class Prot_Hop:
             # Now adjust for passing PBC in the shift collumns.
             self.OH[n+1][:, :, :] += self.L*self.OH_shift[n][:, :]
             self.OH_shift[n+1][:, :] += self.OH_shift[n][:, :]
-        
+            
+            # H2O
+            mismatch_indices = np.where(self.H2O_i[n][-1, :] != self.H2O_i[n+1][0, :])[0]
+            # Swap columns in C_modified based on the mismatch
+            for index in mismatch_indices:
+                # Find the index in B corresponding to the value in A
+                b_index = np.where(self.H2O_i[n+1][0, :] == self.H2O_i[n][-1, index])[0]
+                if b_index.size == 0:
+                    print('CHECK: Reaction occured on stitching back together')
+                else:
+                    self.H2O_i[n+1][:, [index, b_index[0]]] = self.H2O_i[n+1][:, [b_index[0], index]]
+                    self.H2O[n+1][:, [index, b_index[0]], :] = self.H2O[n+1][:, [b_index[0], index], :]
+                    self.H2O_shift[n+1][[index, b_index[0]], :] = self.H2O_shift[n+1][[b_index[0], index], :]
+            
+            # Now adjust for passing PBC in the shift collumns.
+            self.H2O[n+1][:, :, :] += self.L*self.H2O_shift[n][:, :]
+            self.H2O_shift[n+1][:, :] += self.H2O_shift[n][:, :]
+            
         # Combining adjusted arrays back to the right shape
+        # OH-
         self.OH = np.concatenate(self.OH, axis=0)
         self.OH_i = np.concatenate(self.OH_i, axis=0)
         self.n_OH = np.concatenate(self.n_OH, axis=0)
         
-                
+        # H2O
+        self.H2O = np.concatenate(self.H2O, axis=0)
+        self.H2O_i = np.concatenate(self.H2O_i, axis=0)
+        self.n_H2O = np.concatenate(self.n_H2O, axis=0)
+        
+        # H3O+
+        self.n_H3O = np.concatenate(self.n_H3O, axis=0)    
+
     def test_combining(self):
-        outputData = self.comm.gather(self.pos, root=0)
+        
         if self.rank == 0:
-            outputData = np.concatenate(outputData,axis = 0)
+            if self.size == 1:
+                np.savez("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz", OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O)
+                
+            else:
+                loaded = np.load("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz")
+                # test outputs of code
+                if np.allclose(self.OH_i, loaded['OH_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Indexing OH between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.OH, loaded['OH'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Positions OH between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.H2O_i, loaded['H2O_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Indexing H2O between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.H2O, loaded['H2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Positions H2O between multicore and single core arrays differs more than acceptable")
+                
             print('time to completion',  time.time() - self.tstart)
             
             plt.figure()
             # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
-            plt.plot(self.OH_i, label='OH- index ')
+            plt.plot(self.OH_i)
             for i in range(1, self.size):
                 plt.axvline(x = self.pos_O.shape[0]*i, color = 'c')
             
-            plt.xlim(0, self.size*self.pos_O.shape[0])
-            plt.legend()
-            
+            plt.xlim(0, self.size*self.pos_O.shape[0])            
             plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_mpi.png')
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
