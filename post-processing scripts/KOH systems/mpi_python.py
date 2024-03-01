@@ -245,42 +245,50 @@ class Prot_Hop:
         self.pos_K = self.pos[:, self.K, :]
 
         # Create per species-species interactions indexing arrays
-        idx_HO = np.mgrid[0:self.N_H, 0:self.N_O].reshape(2, self.N_H*self.N_O)
-        idx_OO = np.triu_indices(self.N_O, k=1)
-        idx_KO = np.mgrid[0:self.N_K, 0:self.N_O].reshape(2, self.N_K*self.N_O)
-        idx_KK = np.triu_indices(self.N_K, k=1)
+        self.idx_HO = np.mgrid[0:self.N_H, 0:self.N_O].reshape(2, self.N_H*self.N_O)
+        self.idx_OO = np.triu_indices(self.N_O, k=1)
+        self.idx_KO = np.mgrid[0:self.N_K, 0:self.N_O].reshape(2, self.N_K*self.N_O)
+        self.idx_KK = np.triu_indices(self.N_K, k=1)
         if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
-            idx_HH = np.triu_indices(self.N_H, k=1)
-            idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
+            self.idx_HH = np.triu_indices(self.N_H, k=1)
+            self.idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
 
         for n in range(self.n_max):  # Loop over all timesteps
             # Calculate only OH distances for OH- recognition
-            r_HO = (self.pos_O[n, idx_HO[1], :] - self.pos_H[n, idx_HO[0], :] + self.L/2) % self.L - self.L/2
+            r_HO = (self.pos_O[n, self.idx_HO[1], :] - self.pos_H[n, self.idx_HO[0], :] + self.L/2) % self.L - self.L/2
             self.d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
             
             self.recognize_molecules(n)
             if n % n_samples == 0:
                 # Calculate all other distances for RDF's and such when needed
-                r_OO = (self.pos_O[n, idx_OO[1], :] - self.pos_O[n, idx_OO[0], :] + self.L/2) % self.L - self.L/2
+                r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
                 self.d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
                 
-                r_KO = (self.pos_O[n, idx_KO[1], :] - self.pos_K[n, idx_KO[0], :] + self.L/2) % self.L - self.L/2
+                r_KO = (self.pos_O[n, self.idx_KO[1], :] - self.pos_K[n, self.idx_KO[0], :] + self.L/2) % self.L - self.L/2
                 self.d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
                 
-                r_KK = (self.pos_K[n, idx_KK[1], :] - self.pos_K[n, idx_KK[0], :] + self.L/2) % self.L - self.L/2
+                r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
                 self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
 
                 if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
-                    r_HH = (self.pos_H[n, idx_HH[1], :] - self.pos_H[n, idx_HH[0], :] + self.L/2) % self.L - self.L/2
+                    r_HH = (self.pos_H[n, self.idx_HH[1], :] - self.pos_H[n, self.idx_HH[0], :] + self.L/2) % self.L - self.L/2
                     self.d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
                     
-                    r_HK = (self.pos_K[n, idx_HK[1], :] - self.pos_H[n, idx_HK[0], :] + self.L/2) % self.L - self.L/2
+                    r_HK = (self.pos_K[n, self.idx_HK[1], :] - self.pos_H[n, self.idx_HK[0], :] + self.L/2) % self.L - self.L/2
                     self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
-            
+
+                # Now compute RDF results
             
 
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
+
+    def rdf_compute(self, nb=32, r_max=None, cheap=True):
+        if r_max == None:
+            r_max = self.L/2  # set to default half box length rdf cutoff
+        
+        
+        
 
     def stitching_together_all(self):
         # prepair gethering on all cores 1) All OH- stuff
