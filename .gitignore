@@ -8,6 +8,7 @@
 *.json
 *.sqlite
 *__pycache__*
+*.vscode/*
 
 # Keeping out large VASP files
 *CHGCAR
