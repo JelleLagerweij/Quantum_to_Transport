@@ -372,26 +372,26 @@ class Prot_Hop:
             if self.size == 1:
                 np.savez("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz", OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O)
                 
+                path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_serial'
                 plt.plot(self.OH_i)             
                 plt.xlim(0, self.size*self.pos_O.shape[0])      
                 plt.xlabel('timestep')      
                 plt.ylabel('OH- atom index')
-                plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_serial.png')
+                plt.savefig(path + r'\index_OH.png')
                 
                 plt.figure()
                 plt.plot(self.n_OH)
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('number of OH-')
-                plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\n_OH_serial.png')
-                
+                plt.savefig(path + r'\n_OH.png')                
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
                 plt.plot(disp)
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
-                plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\dis_OH_serial.png')
+                plt.savefig(path + r'\dis_OH.png')
                 
                 
             else:
@@ -407,7 +407,8 @@ class Prot_Hop:
                     print("Positions H2O between multicore and single core arrays differs more than acceptable")
                 
             
-            
+                path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_mpi'
+
                 plt.figure()
                 # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
                 plt.plot(self.OH_i)
@@ -416,7 +417,7 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])  
                 plt.xlabel('timestep')      
                 plt.ylabel('OH- atom index')          
-                plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\index_OH_mpi.png')
+                plt.savefig(path + r'\index_OH.png')
                 
                 plt.figure()
                 plt.plot(self.n_OH)
@@ -425,7 +426,7 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('number of OH-')
-                plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\n_OH_mpi.png')
+                plt.savefig(path + r'\n_OH.png')
                 
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
@@ -435,8 +436,7 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
-                plt.savefig(r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\dis_OH_mpi.png')
-        
+                plt.savefig(path + r'\dis_OH.png')        
         
         
 
