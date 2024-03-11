@@ -14,7 +14,7 @@ import time
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, T_ave=325, dt=0.5):
+    def __init__(self, folder, T_ave=325, dt=0.5, cheap=True):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -28,6 +28,7 @@ class Prot_Hop:
             folder (string): path to hdf5 otput file
             T_ave (float/int, optional): The set simulation temperature in K. Defaults to 325.
             dt (float/int, optional): The simulation timestep in fs. Defaults to 0.5.
+            cheap (bool, optional): skips less relevant interaction modes. Defaults to True.
         """
         self.tstart = time.time()
         self.dt = dt
@@ -38,6 +39,7 @@ class Prot_Hop:
         self.size = self.comm.Get_size()
         self.rank = self.comm.Get_rank()
         self.error_flag = 0
+        self.cheap = cheap
 
         # Normal Startup Behaviour
         self.setting_properties_all(folder)  # all cores
@@ -127,6 +129,15 @@ class Prot_Hop:
         self.steps = self.comm.scatter(self.steps_split, root=0)
 
         self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
+        
+        # communicate if cheapened calculation (less interaction types included)
+        if self.rank == 0:
+            self.cheap = self.cheap
+        else:
+            self.cheap = False
+        self.cheap = self.comm.bcast(self.cheap, root=0)
+        print(self.cheap)
+            
         if self.rank == 0:
             # print('Rank', self.rank, "number timesteps", self.n_max)
             print('Time after communication', time.time() - self.tstart)
@@ -229,15 +240,14 @@ class Prot_Hop:
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
-   
-    def loop_timesteps_all(self, n_samples=10, cheap=True): 
+
+    def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
 
         Args:
             n_samples (int, optional): time between sampling rdfs. Defaults to 10.
-            cheap (bool, optional): skips less relevant interaction modes. Defaults to True.
         """
         # split the arrays up to per species description
         self.pos_H = self.pos[:, self.H, :]
@@ -245,11 +255,11 @@ class Prot_Hop:
         self.pos_K = self.pos[:, self.K, :]
 
         # Create per species-species interactions indexing arrays
+        self.idx_KK = np.triu_indices(self.N_K, k=1)
+        self.idx_KO = np.mgrid[0:self.N_K, 0:self.N_O].reshape(2, self.N_K*self.N_O)
         self.idx_HO = np.mgrid[0:self.N_H, 0:self.N_O].reshape(2, self.N_H*self.N_O)
         self.idx_OO = np.triu_indices(self.N_O, k=1)
-        self.idx_KO = np.mgrid[0:self.N_K, 0:self.N_O].reshape(2, self.N_K*self.N_O)
-        self.idx_KK = np.triu_indices(self.N_K, k=1)
-        if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
+        if self.cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
             self.idx_HH = np.triu_indices(self.N_H, k=1)
             self.idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
 
@@ -262,15 +272,24 @@ class Prot_Hop:
             if n % n_samples == 0:
                 # Calculate all other distances for RDF's and such when needed
                 r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
-                self.d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
+                d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
+                self.d_OHOH = d_OO[((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))]
+                self.d_H2OH2O = d_OO[((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n])))]
+                self.d_OHH2O = d_OO[(((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))) |
+                                    (((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))))]  # ((a and b) or (b and a)) conditional
                 
                 r_KO = (self.pos_O[n, self.idx_KO[1], :] - self.pos_K[n, self.idx_KO[0], :] + self.L/2) % self.L - self.L/2
-                self.d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
+                d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
+                self.d_KOH = d_KO[np.isin(self.idx_KO[1], self.OH_i[n])]  # selecting only OH from array
+                self.d_KH2O = d_KO[np.isin(self.idx_KO[1], self.H2O_i[n])]  # selecting only OH from array
                 
                 r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
                 self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
 
-                if cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
+                if self.cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
+                    self.d_HOH = self.d_HO[np.isin(self.idx_HO[1], self.OH_i[n])]
+                    self.d_HH2O = self.d_HO[np.isin(self.idx_HO[1], self.H2O_i[n])]
+                    
                     r_HH = (self.pos_H[n, self.idx_HH[1], :] - self.pos_H[n, self.idx_HH[0], :] + self.L/2) % self.L - self.L/2
                     self.d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
                     
@@ -278,16 +297,52 @@ class Prot_Hop:
                     self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
 
                 # Now compute RDF results
+                self.rdf_compute_all()
             
 
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute(self, nb=32, r_max=None, cheap=True):
-        if r_max == None:
-            r_max = self.L/2  # set to default half box length rdf cutoff
+    def rdf_compute_all(self,nb=32, r_max=None):
+        # RDF startup scheme
+        if n == 0:
+            # set standard maximum rdf value
+            r_min = 0
+            if r_max == None:
+                r_max = np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
+
+            self.rdf_sample_counter = 0
+            # set basic properties
+            self.r = np.histogram(self.d_H2OH2O, bins=nb, range=(r_min, r_max))[1] # array with outer edges
+            
+            # Standard rdf pairs            
+            self.rdf_OHOH = np.zeros(self.r.size -1)
+            self.rdf_H2OH2O = np.zeros(self.r.size -1)
+            self.rdf_OHH2O = np.zeros(self.r.size -1)
+            self.rdf_KOH = np.zeros(self.r.size -1)
+            self.rdf_KH2O = np.zeros(self.r.size -1)
+            self.rdf_KK = np.zeros(self.r.size -1)
+            if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
+                self.rdf_HOH = np.zeros(self.r.size -1)
+                self.rdf_HH2O = np.zeros(self.r.size -1)
+                self.rdf_HK = np.zeros(self.r.size -1)
+                self.rdf_HH = np.zeros(self.r.size -1)
         
+        # Now calculate all rdf's (without rescaling them, will be done later)
+        self.rdf_OHOH += np.histogram(self.d_OHOH, bins=self.r)[0]
+        self.rdf_H2OH2O += np.histogram(self.d_H2OH2O, bins=self.r)[0]
+        self.rdf_OHH2O += np.histogram(self.d_OHH2O, bins=self.r)[0]
+        self.rdf_KOH += np.histogram(self.d_KOH, bins=self.r)[0]
+        self.rdf_KH2O += np.histogram(self.d_KH2O, bins=self.r)[0]
+        self.rdf_KK += np.histogram(self.d_KK, bins=self.r)[0]
+    
+        if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
+                self.rdf_HOH = np.histogram(self.d_HOH, bins=self.r)[0]
+                self.rdf_HH2O = np.histogram(self.d_HH2O, bins=self.r)[0]
+                self.rdf_HK = np.histogram(self.d_HK, bins=self.r)[0]
+                self.rdf_HH = np.histogram(self.d_HK, bins=self.r)[0]
         
+        self.rdf_sample_counter += 1
         
 
     def stitching_together_all(self):
@@ -307,7 +362,36 @@ class Prot_Hop:
         self.n_H3O = self.comm.gather(self.n_H3O, root=0)
         
         # RDF's
-        # TODO
+        # First rescale all RDFs accordingly also prepaire for averaging using mpi.sum
+        self.r_cent = (self.r[:-1] + self.r[:-1])  # central point of rdf bins
+        rescale_geometry = 4*np.pi*(self.r_cent)*(self.r[1] - self.r[0])  # 4*pi*r*dr
+
+        self.rdf_OHOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*(self.N_OH - 1)*self.size)  # rdf*L_box^3/(n_sample*n_interactions*geometry_rescale/n_cores)
+        self.rdf_H2OH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*(self.N_H2O - 1)*self.size)
+        self.rdf_OHH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*self.N_H2O*self.size)
+        self.rdf_KOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*self.N_K*self.size)
+        self.rdf_KH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*self.N_K*self.size)
+        self.rdf_KK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_K*(self.N_K - 1)*self.size)
+        if self.cheap is False:
+            self.rdf_HOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_OH*self.size)
+            self.rdf_HH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_H2O*self.size)
+            self.rdf_HK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_K*self.size)
+            self.rdf_HH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*(self.N_H - 1)*self.size)
+        
+        # Then communicate these to main core. 
+        self.r_OHOH = self.comm.reduce(self.rdf_OHOH, op=MPI.SUM, root=0)
+        self.r_H2OH2O = self.comm.reduce(self.rdf_OHOH, op=MPI.SUM, root=0)
+        self.r_OHH2O = self.comm.reduce(self.rdf_OHH2O, op=MPI.SUM, root=0)
+        self.r_KOH = self.comm.reduce(self.rdf_KOH, op=MPI.SUM, root=0)
+        self.r_KH2O = self.comm.reduce(self.rdf_KH2O, op=MPI.SUM, root=0)
+        self.r_KK = self.comm.reduce(self.rdf_KK, op=MPI.SUM, root=0)
+        
+        if self.cheap is False:
+            self.r_HOH = self.comm.reduce(self.rdf_HOH, op=MPI.SUM, root=0)
+            self.r_HH2O = self.comm.reduce(self.rdf_HH2O, op=MPI.SUM, root=0)
+            self.r_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
+            self.r_HH = self.comm.reduce(self.rdf_HH, op=MPI.SUM, root=0)
+   
         
         # Stich together correctly on main cores
         if self.rank == 0:
@@ -364,7 +448,9 @@ class Prot_Hop:
         self.n_H2O = np.concatenate(self.n_H2O, axis=0)
         
         # H3O+
-        self.n_H3O = np.concatenate(self.n_H3O, axis=0)    
+        self.n_H3O = np.concatenate(self.n_H3O, axis=0)
+        
+        # RDF functionality has no need to do anything
 
     def test_combining(self):
         if self.rank == 0:
