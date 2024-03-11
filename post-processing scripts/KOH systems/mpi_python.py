@@ -297,13 +297,13 @@ class Prot_Hop:
                     self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
 
                 # Now compute RDF results
-                self.rdf_compute_all()
+                self.rdf_compute_all(n)
             
 
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self,nb=32, r_max=None):
+    def rdf_compute_all(self, n, nb=32, r_max=None):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
