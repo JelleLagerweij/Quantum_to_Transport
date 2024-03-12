@@ -136,8 +136,7 @@ class Prot_Hop:
         else:
             self.cheap = False
         self.cheap = self.comm.bcast(self.cheap, root=0)
-        print(self.cheap)
-            
+                    
         if self.rank == 0:
             # print('Rank', self.rank, "number timesteps", self.n_max)
             print('Time after communication', time.time() - self.tstart)
@@ -273,7 +272,6 @@ class Prot_Hop:
                 # Calculate all other distances for RDF's and such when needed
                 r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
                 d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
-                self.d_OHOH = d_OO[((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))]
                 self.d_H2OH2O = d_OO[((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n])))]
                 self.d_OHH2O = d_OO[(((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))) |
                                     (((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))))]  # ((a and b) or (b and a)) conditional
@@ -282,9 +280,11 @@ class Prot_Hop:
                 d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
                 self.d_KOH = d_KO[np.isin(self.idx_KO[1], self.OH_i[n])]  # selecting only OH from array
                 self.d_KH2O = d_KO[np.isin(self.idx_KO[1], self.H2O_i[n])]  # selecting only OH from array
-                
-                r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
-                self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
+
+                if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+                    self.d_OHOH = d_OO[((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))]
+                    r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
+                    self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
 
                 if self.cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
                     self.d_HOH = self.d_HO[np.isin(self.idx_HO[1], self.OH_i[n])]
@@ -303,25 +303,26 @@ class Prot_Hop:
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=32, r_max=None):
+    def rdf_compute_all(self, n, nb=64, r_max=None):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
-            r_min = 0
+            r_min = 1
             if r_max == None:
-                r_max = np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
+                r_max = self.L/2  # np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
 
             self.rdf_sample_counter = 0
             # set basic properties
             self.r = np.histogram(self.d_H2OH2O, bins=nb, range=(r_min, r_max))[1] # array with outer edges
             
             # Standard rdf pairs            
-            self.rdf_OHOH = np.zeros(self.r.size -1)
             self.rdf_H2OH2O = np.zeros(self.r.size -1)
             self.rdf_OHH2O = np.zeros(self.r.size -1)
             self.rdf_KOH = np.zeros(self.r.size -1)
             self.rdf_KH2O = np.zeros(self.r.size -1)
-            self.rdf_KK = np.zeros(self.r.size -1)
+            if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+                self.rdf_OHOH = np.zeros(self.r.size -1)
+                self.rdf_KK = np.zeros(self.r.size -1)
             if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
                 self.rdf_HOH = np.zeros(self.r.size -1)
                 self.rdf_HH2O = np.zeros(self.r.size -1)
@@ -329,12 +330,14 @@ class Prot_Hop:
                 self.rdf_HH = np.zeros(self.r.size -1)
         
         # Now calculate all rdf's (without rescaling them, will be done later)
-        self.rdf_OHOH += np.histogram(self.d_OHOH, bins=self.r)[0]
         self.rdf_H2OH2O += np.histogram(self.d_H2OH2O, bins=self.r)[0]
         self.rdf_OHH2O += np.histogram(self.d_OHH2O, bins=self.r)[0]
         self.rdf_KOH += np.histogram(self.d_KOH, bins=self.r)[0]
         self.rdf_KH2O += np.histogram(self.d_KH2O, bins=self.r)[0]
-        self.rdf_KK += np.histogram(self.d_KK, bins=self.r)[0]
+
+        if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+            self.rdf_OHOH += np.histogram(self.d_OHOH, bins=self.r)[0]
+            self.rdf_KK += np.histogram(self.d_KK, bins=self.r)[0]
     
         if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
                 self.rdf_HOH = np.histogram(self.d_HOH, bins=self.r)[0]
@@ -363,15 +366,16 @@ class Prot_Hop:
         
         # RDF's
         # First rescale all RDFs accordingly also prepaire for averaging using mpi.sum
-        self.r_cent = (self.r[:-1] + self.r[:-1])  # central point of rdf bins
-        rescale_geometry = 4*np.pi*(self.r_cent)*(self.r[1] - self.r[0])  # 4*pi*r*dr
-
-        self.rdf_OHOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*(self.N_OH - 1)*self.size)  # rdf*L_box^3/(n_sample*n_interactions*geometry_rescale/n_cores)
-        self.rdf_H2OH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*(self.N_H2O - 1)*self.size)
+        self.r_cent = (self.r[:-1] + self.r[1:])/2  # central point of rdf bins
+        rescale_geometry = (4*np.pi*self.r_cent**2)*(self.r[1] - self.r[0])  # 4*pi*r*dr
+        
+        self.rdf_H2OH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*(self.N_H2O - 1)*self.size)  # rdf*L_box^3/(n_sample*n_interactions*geometry_rescale/n_cores)
         self.rdf_OHH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*self.N_H2O*self.size)
         self.rdf_KOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*self.N_K*self.size)
         self.rdf_KH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*self.N_K*self.size)
-        self.rdf_KK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_K*(self.N_K - 1)*self.size)
+        if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+            self.rdf_OHOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*(self.N_OH - 1)*self.size)  
+            self.rdf_KK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_K*(self.N_K - 1)*self.size)
         if self.cheap is False:
             self.rdf_HOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_OH*self.size)
             self.rdf_HH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_H2O*self.size)
@@ -379,20 +383,22 @@ class Prot_Hop:
             self.rdf_HH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*(self.N_H - 1)*self.size)
         
         # Then communicate these to main core. 
-        self.r_OHOH = self.comm.reduce(self.rdf_OHOH, op=MPI.SUM, root=0)
-        self.r_H2OH2O = self.comm.reduce(self.rdf_OHOH, op=MPI.SUM, root=0)
-        self.r_OHH2O = self.comm.reduce(self.rdf_OHH2O, op=MPI.SUM, root=0)
-        self.r_KOH = self.comm.reduce(self.rdf_KOH, op=MPI.SUM, root=0)
-        self.r_KH2O = self.comm.reduce(self.rdf_KH2O, op=MPI.SUM, root=0)
-        self.r_KK = self.comm.reduce(self.rdf_KK, op=MPI.SUM, root=0)
+        self.rdf_H2OH2O = self.comm.reduce(self.rdf_H2OH2O, op=MPI.SUM)
+        self.rdf_OHH2O = self.comm.reduce(self.rdf_OHH2O, op=MPI.SUM, root=0)
+        self.rdf_KOH = self.comm.reduce(self.rdf_KOH, op=MPI.SUM, root=0)
+        self.rdf_KH2O = self.comm.reduce(self.rdf_KH2O, op=MPI.SUM, root=0)
+        
+        if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+            self.rdf_OHOH = self.comm.reduce(self.rdf_OHOH, op=MPI.SUM, root=0)
+            self.rdf_KK = self.comm.reduce(self.rdf_KK, op=MPI.SUM, root=0)
         
         if self.cheap is False:
-            self.r_HOH = self.comm.reduce(self.rdf_HOH, op=MPI.SUM, root=0)
-            self.r_HH2O = self.comm.reduce(self.rdf_HH2O, op=MPI.SUM, root=0)
-            self.r_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
-            self.r_HH = self.comm.reduce(self.rdf_HH, op=MPI.SUM, root=0)
+            self.rdf_HOH = self.comm.reduce(self.rdf_HOH, op=MPI.SUM, root=0)
+            self.rdf_HH2O = self.comm.reduce(self.rdf_HH2O, op=MPI.SUM, root=0)
+            self.rdf_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
+            self.rdf_HH = self.comm.reduce(self.rdf_HH, op=MPI.SUM, root=0)
    
-        
+        print('rank', self.rank, 'array', self.rdf_H2OH2O)
         # Stich together correctly on main cores
         if self.rank == 0:
             self.stitching_together_main()
@@ -478,7 +484,14 @@ class Prot_Hop:
                 plt.xlabel('timestep')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
                 plt.savefig(path + r'\dis_OH.png')
-                
+                plt.figure()
+                plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
+                plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
+                plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
+                plt.xlabel('radius in A')
+                plt.ylabel('g(r)')
+                plt.legend()
+                plt.savefig(path + r'\rdf_H2OH2O')
                 
             else:
                 loaded = np.load("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz")
@@ -522,7 +535,16 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'\dis_OH.png')        
+                plt.savefig(path + r'\dis_OH.png')    
+                
+                plt.figure()
+                plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
+                plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
+                plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
+                plt.legend()
+                plt.xlabel('radius in A')
+                plt.ylabel('g(r)')
+                plt.savefig(path + r'\rdf_H2OH2O')    
         
         
 
@@ -531,4 +553,4 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
