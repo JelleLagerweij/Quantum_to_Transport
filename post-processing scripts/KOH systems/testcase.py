@@ -31,6 +31,6 @@ rdf = comm.reduce(rdf, op=MPI.SUM, root=0)
 
 if rank == 0:
     # local_sum = global_sum/float(size)
-    print(f"Process {rank}: Local sum = {rdf/2}")
+    print(f"Process {rank}: Local sum = {rdf}")
 else:
     print(f"Process {rank}: Local sum = {rdf}")
