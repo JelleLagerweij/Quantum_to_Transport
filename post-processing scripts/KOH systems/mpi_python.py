@@ -303,7 +303,7 @@ class Prot_Hop:
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=64, r_max=None):
+    def rdf_compute_all(self, n, nb=32, r_max=None):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
@@ -369,18 +369,18 @@ class Prot_Hop:
         self.r_cent = (self.r[:-1] + self.r[1:])/2  # central point of rdf bins
         rescale_geometry = (4*np.pi*self.r_cent**2)*(self.r[1] - self.r[0])  # 4*pi*r*dr
         
-        self.rdf_H2OH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*(self.N_H2O - 1)*self.size)  # rdf*L_box^3/(n_sample*n_interactions*geometry_rescale/n_cores)
+        self.rdf_H2OH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*(self.N_H2O - 1)*0.5*self.size)  # rdf*L_box^3/(n_sample*n_interactions*geometry_rescale/n_cores)
         self.rdf_OHH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*self.N_H2O*self.size)
         self.rdf_KOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*self.N_K*self.size)
         self.rdf_KH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H2O*self.N_K*self.size)
         if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
-            self.rdf_OHOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*(self.N_OH - 1)*self.size)  
-            self.rdf_KK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_K*(self.N_K - 1)*self.size)
+            self.rdf_OHOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_OH*(self.N_OH - 1)*0.5*self.size)  
+            self.rdf_KK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_K*(self.N_K - 1)*0.5*self.size)
         if self.cheap is False:
             self.rdf_HOH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_OH*self.size)
             self.rdf_HH2O *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_H2O*self.size)
             self.rdf_HK *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*self.N_K*self.size)
-            self.rdf_HH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*(self.N_H - 1)*self.size)
+            self.rdf_HH *= (self.L**3)/(self.rdf_sample_counter*rescale_geometry*self.N_H*(self.N_H - 1)*0.5*self.size)
         
         # Then communicate these to main core. 
         self.rdf_H2OH2O = self.comm.reduce(self.rdf_H2OH2O, op=MPI.SUM)
@@ -397,8 +397,7 @@ class Prot_Hop:
             self.rdf_HH2O = self.comm.reduce(self.rdf_HH2O, op=MPI.SUM, root=0)
             self.rdf_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
             self.rdf_HH = self.comm.reduce(self.rdf_HH, op=MPI.SUM, root=0)
-   
-        print('rank', self.rank, 'array', self.rdf_H2OH2O)
+
         # Stich together correctly on main cores
         if self.rank == 0:
             self.stitching_together_main()
@@ -462,7 +461,9 @@ class Prot_Hop:
         if self.rank == 0:
             print('time to completion',  time.time() - self.tstart)
             if self.size == 1:
-                np.savez("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz", OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O)
+                np.savez("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz",
+                         OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                         r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
                 
                 path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_serial'
                 plt.plot(self.OH_i)             
@@ -504,7 +505,13 @@ class Prot_Hop:
                     print("Indexing H2O between multicore and single core arrays differs more than acceptable")
                 if np.allclose(self.H2O, loaded['H2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
                     print("Positions H2O between multicore and single core arrays differs more than acceptable")
-                
+                if np.allclose(self.rdf_H2OH2O, loaded['rdf_H2OH2O']) == False:
+                    print("RDF H2O-H2O between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.rdf_OHH2O, loaded['rdf_OHH2O']) == False:
+                    print("RDF OH-H2O between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.rdf_KH2O, loaded['rdf_KH2O']) == False:
+                    print("RDF K-H2O between multicore and single core arrays differs more than acceptable")
+                    
             
                 path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_mpi'
 
@@ -544,7 +551,7 @@ class Prot_Hop:
                 plt.legend()
                 plt.xlabel('radius in A')
                 plt.ylabel('g(r)')
-                plt.savefig(path + r'\rdf_H2OH2O')    
+                plt.savefig(path + r'\rdf_H2OH2O')
         
         
 
@@ -553,4 +560,4 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
