@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import scipy as sp
-import re
+import glob
 import scipy.constants as co
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
@@ -57,20 +57,30 @@ class Prot_Hop:
             folder (string): path to hdf5 otput file
         """
 
-        # import the system from the hdf5 output
-        self.df = Calculation.from_path(folder)
-        data = self.df.structure[:].to_dict()
-
-        # Calculate number of atoms total and per type and their indexes
-        self.N = np.array([data['elements'].count(self.species[0]),
-                           data['elements'].count(self.species[1]),
-                           data['elements'].count(self.species[2])])
-
-        # split array up
-        self.L = data['lattice_vectors'][0, 0, 0]
-        self.pos_all = self.L*data['positions']
-        self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
+        # finds all vaspout*.h5 files in folder and orders them alphabetically
+        subsimulations = sorted(glob.glob(folder+r"/vaspout*"))
+        # loop over subsimulations
+        for i in range(len(subsimulations)):
+            self.df = Calculation.from_file(subsimulations[i])
+            data = self.df.structure[:].to_dict()
+            if i == 0:
+                # Load initial properties and arrays out of first simulation
+                self.N = np.array([data['elements'].count(self.species[0]),
+                                   data['elements'].count(self.species[1]),
+                                   data['elements'].count(self.species[2])])
+                self.L = data['lattice_vectors'][0, 0, 0]  # Boxsize
+                self.pos_all = self.L*data['positions']
+            else:
+                # load new positions, but apply pbc unwrapping (# ARGHGH VASP)
+                pos = self.L*data['positions']
+                dis_data = self.pos_all[-1, :, :] - pos[0, :, :]
+                dis_real = ((self.pos_all[-1, :, :] - pos[0, :, :] + self.L/2) % self.L - self.L/2)
+                pos -= (dis_real - dis_data)
+                # now matching together
+                self.pos_all = np.concatenate((self.pos_all, pos), axis=0)
         
+        # After putting multiple simulations together
+        self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
         # calculate chunk sizes for communication
         self.chunks = [int]*self.size
         self.steps_split = [None]*self.size
@@ -129,7 +139,6 @@ class Prot_Hop:
         self.steps = self.comm.scatter(self.steps_split, root=0)
 
         self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
-        
         # communicate if cheapened calculation (less interaction types included)
         if self.rank == 0:
             self.cheap = self.cheap
@@ -140,7 +149,6 @@ class Prot_Hop:
         if self.rank == 0:
             # print('Rank', self.rank, "number timesteps", self.n_max)
             print('Time after communication', time.time() - self.tstart)
-
 
     def recognize_molecules(self, n):
         """
@@ -188,6 +196,10 @@ class Prot_Hop:
             
             self.OH_i_s = OH_i  # set this in the first timestep
         else:
+            if self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
+                print(f"Strange behaviour found, H3O+ created. Rank", self.rank, 'timestep ', self.steps[n])
+                print(f"N_H3O+", self.n_H3O[n], 'N_OH', self.n_OH[n])
+
             if (OH_i == self.OH_i_s).all():  # No reaction occured only check PBC
                 self.OH_i[n, :] = self.OH_i[n-1, :]  # use origional sorting by using last version as nothing changed
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
@@ -195,12 +207,8 @@ class Prot_Hop:
                 self.H2O_i[n, :] = self.H2O_i[n-1, :]  # use origional sorting by using last version as nothing changed
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :] + self.L*self.H2O_shift
 
-            else:  # Normal reaction cases
+            else:  # Reaction cases
                 # find which OH- belongs to which OH-. This is difficult because of sorting differences.
-                
-                if self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                    print(f"Strange behaviour found, H3O+ created. Rank", self.rank, 'timestep ', self.steps[n])
-
                 diff_new = np.setdiff1d(OH_i, self.OH_i[n-1, :], assume_unique=True)
                 diff_old = np.setdiff1d(self.OH_i[n-1, :], OH_i, assume_unique=True)
                 
@@ -303,7 +311,7 @@ class Prot_Hop:
         if self.rank == 0:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=32, r_max=None):
+    def rdf_compute_all(self, n, nb=48, r_max=None):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
@@ -315,7 +323,7 @@ class Prot_Hop:
             # set basic properties
             self.r = np.histogram(self.d_H2OH2O, bins=nb, range=(r_min, r_max))[1] # array with outer edges
             
-            # Standard rdf pairs            
+            # Standard rdf pairs
             self.rdf_H2OH2O = np.zeros(self.r.size -1)
             self.rdf_OHH2O = np.zeros(self.r.size -1)
             self.rdf_KOH = np.zeros(self.r.size -1)
@@ -347,7 +355,6 @@ class Prot_Hop:
         
         self.rdf_sample_counter += 1
         
-
     def stitching_together_all(self):
         # prepair gethering on all cores 1) All OH- stuff
         self.OH_i = self.comm.gather(self.OH_i, root=0)
@@ -401,8 +408,7 @@ class Prot_Hop:
         # Stich together correctly on main cores
         if self.rank == 0:
             self.stitching_together_main()
-
-        
+      
     def stitching_together_main(self):
         # NOW ADD 1 reaction recognition and 2 reordering
         # for every end of 1 section check with start next one
@@ -505,12 +511,15 @@ class Prot_Hop:
                     print("Indexing H2O between multicore and single core arrays differs more than acceptable")
                 if np.allclose(self.H2O, loaded['H2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
                     print("Positions H2O between multicore and single core arrays differs more than acceptable")
-                if np.allclose(self.rdf_H2OH2O, loaded['rdf_H2OH2O']) == False:
+                if np.allclose(self.rdf_H2OH2O, loaded['rdf_H2OH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
                     print("RDF H2O-H2O between multicore and single core arrays differs more than acceptable")
-                if np.allclose(self.rdf_OHH2O, loaded['rdf_OHH2O']) == False:
+                    print("maximum difference =", np.max(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), loaded['r_rdf'][np.argmax(self.rdf_H2OH2O - loaded['rdf_H2OH2O'])])
+                if np.allclose(self.rdf_OHH2O, loaded['rdf_OHH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
                     print("RDF OH-H2O between multicore and single core arrays differs more than acceptable")
-                if np.allclose(self.rdf_KH2O, loaded['rdf_KH2O']) == False:
+                    print("maximum difference =", np.max(self.rdf_OHH2O - loaded['rdf_OHH2O']), loaded['r_rdf'][np.argmax(self.rdf_OHH2O - loaded['rdf_OHH2O'])])
+                if np.allclose(self.rdf_KH2O, loaded['rdf_KH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
                     print("RDF K-H2O between multicore and single core arrays differs more than acceptable")
+                    print("maximum difference =", np.max(self.rdf_KH2O - loaded['rdf_KH2O']), loaded['r_rdf'][np.argmax(self.rdf_KH2O - loaded['rdf_KH2O'])])
                     
             
                 path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_mpi'
@@ -552,12 +561,10 @@ class Prot_Hop:
                 plt.xlabel('radius in A')
                 plt.ylabel('g(r)')
                 plt.savefig(path + r'\rdf_H2OH2O')
-        
-        
-
 
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation", dt=0.5)
