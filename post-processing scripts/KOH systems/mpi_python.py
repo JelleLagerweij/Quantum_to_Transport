@@ -523,7 +523,7 @@ class Prot_Hop:
                     print("maximum difference =", np.max(self.rdf_KH2O - loaded['rdf_KH2O']), loaded['r_rdf'][np.argmax(self.rdf_KH2O - loaded['rdf_KH2O'])])
                     
             
-                path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_mpi'
+                path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_14/Figures/'
 
                 plt.figure()
                 # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
