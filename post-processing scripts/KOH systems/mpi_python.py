@@ -10,11 +10,12 @@ from py4vasp import Calculation
 from mpi4py import MPI
 # import sys
 import time
+import os
 
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, T_ave=325, dt=0.5, cheap=True):
+    def __init__(self, folder, T_ave=325, dt=0.5, cheap=True, timit=False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -40,14 +41,16 @@ class Prot_Hop:
         self.rank = self.comm.Get_rank()
         self.error_flag = 0
         self.cheap = cheap
+        self.folder = folder
+        self.timit = timit
 
         # Normal Startup Behaviour
-        self.setting_properties_all(folder)  # all cores
+        self.setting_properties_all()  # all cores
         self.loop_timesteps_all()
         self.stitching_together_all()
         self.test_combining()
 
-    def setting_properties_main(self, folder):
+    def setting_properties_main(self):
         """
         Load the output file into dedicated arrays
 
@@ -58,7 +61,7 @@ class Prot_Hop:
         """
 
         # finds all vaspout*.h5 files in folder and orders them alphabetically
-        subsimulations = sorted(glob.glob(folder+r"/vaspout*"))
+        subsimulations = sorted(glob.glob(self.folder+r"/vaspout*"))
         # loop over subsimulations
         for i in range(len(subsimulations)):
             self.df = Calculation.from_file(subsimulations[i])
@@ -99,14 +102,14 @@ class Prot_Hop:
         # 1. Load the stresses
         # 2. Load the energies
 
-    def setting_properties_all(self, folder):
+    def setting_properties_all(self):
         """
         Initializes system for all cores
 
         This function initializes the variables that need to be available to all cores
         """
         if self.rank == 0:
-            self.setting_properties_main(folder)  # Initializes on main cores
+            self.setting_properties_main()  # Initializes on main cores
         else:
             self.chunks = [None]*self.size
             self.L = float
@@ -146,8 +149,7 @@ class Prot_Hop:
             self.cheap = False
         self.cheap = self.comm.bcast(self.cheap, root=0)
                     
-        if self.rank == 0:
-            # print('Rank', self.rank, "number timesteps", self.n_max)
+        if self.rank == 0 and self.timit is True:
             print('Time after communication', time.time() - self.tstart)
 
     def recognize_molecules(self, n):
@@ -308,7 +310,7 @@ class Prot_Hop:
                 self.rdf_compute_all(n)
             
 
-        if self.rank == 0:
+        if self.rank == 0 and self.timit is True:
             print('Time calculating distances', time.time() - self.tstart)
 
     def rdf_compute_all(self, n, nb=48, r_max=None):
@@ -465,33 +467,44 @@ class Prot_Hop:
 
     def test_combining(self):
         if self.rank == 0:
-            print('time to completion',  time.time() - self.tstart)
+            if self.timit is True:
+                print('time to completion',  time.time() - self.tstart)
             if self.size == 1:
-                np.savez("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz",
+                np.savez(self.folder + r"/single_core.npz",
                          OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
                          r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
                 
                 # path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_serial'
-                path = r"/scratch/vlagerweij/simulations/Quantum_to_Transport/post-processing scripts/KOH systems/figures_serial"
+                path = self.folder + r"/single_core"
+                try:
+                    os.makedirs(path, exist_ok=True)
+                except OSError as error:
+                    print(error, "Continuing")
+
                 plt.plot(self.OH_i)             
                 plt.xlim(0, self.size*self.pos_O.shape[0])      
                 plt.xlabel('timestep')      
                 plt.ylabel('OH- atom index')
-                plt.savefig(path + r'\index_OH.png')
+                plt.savefig(path + r'/index_OH.png')
+                plt.close()
                 
                 plt.figure()
                 plt.plot(self.n_OH)
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('number of OH-')
-                plt.savefig(path + r'\n_OH.png')                
+                plt.savefig(path + r'/n_OH.png')  
+                plt.close()
+                              
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
                 plt.plot(disp)
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'\dis_OH.png')
+                plt.savefig(path + r'/dis_OH.png')
+                plt.close()
+                
                 plt.figure()
                 plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
                 plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
@@ -499,7 +512,8 @@ class Prot_Hop:
                 plt.xlabel('radius in A')
                 plt.ylabel('g(r)')
                 plt.legend()
-                plt.savefig(path + r'\rdf_H2OH2O')
+                plt.savefig(path + r'/rdf_H2OH2O')
+                plt.close()
                 
             else:
                 loaded = np.load("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz")
@@ -523,8 +537,12 @@ class Prot_Hop:
                     print("maximum difference =", np.max(self.rdf_KH2O - loaded['rdf_KH2O']), loaded['r_rdf'][np.argmax(self.rdf_KH2O - loaded['rdf_KH2O'])])
                     
             
-                path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_14/Figures/'
-
+                # path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_mpi'
+                path = self.folder + r"/multi_core"
+                try:
+                    os.mkdir(path)
+                except OSError as error:
+                    print(error, "Continuing")
                 plt.figure()
                 # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
                 plt.plot(self.OH_i)
@@ -533,7 +551,8 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])  
                 plt.xlabel('timestep')      
                 plt.ylabel('OH- atom index')          
-                plt.savefig(path + r'\index_OH.png')
+                plt.savefig(path + r'/index_OH.png')
+                plt.close()
                 
                 plt.figure()
                 plt.plot(self.n_OH)
@@ -542,7 +561,8 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('number of OH-')
-                plt.savefig(path + r'\n_OH.png')
+                plt.savefig(path + r'/n_OH.png')
+                plt.close()
                 
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
@@ -552,7 +572,8 @@ class Prot_Hop:
                 plt.xlim(0, self.size*self.pos_O.shape[0])
                 plt.xlabel('timestep')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'\dis_OH.png')    
+                plt.savefig(path + r'/dis_OH.png')
+                plt.close()
                 
                 plt.figure()
                 plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
@@ -561,13 +582,16 @@ class Prot_Hop:
                 plt.legend()
                 plt.xlabel('radius in A')
                 plt.ylabel('g(r)')
-                plt.savefig(path + r'\rdf_H2OH2O')
+                plt.savefig(path + r'/rdf_H2OH2O')
+                plt.close()
 
 
 ### TEST LOCATIONS ###
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation", dt=0.5)
+
+# Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/", dt=0.5)
