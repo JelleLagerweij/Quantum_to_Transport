@@ -1,14 +1,14 @@
 import numpy as np
-import pandas as pd
-import scipy as sp
+# import pandas as pd
+# import scipy as sp
 import glob
-import scipy.constants as co
-import scipy.optimize as opt
+# import scipy.constants as co
+# import scipy.optimize as opt
 import matplotlib.pyplot as plt
-import freud
+# import freud
 from py4vasp import Calculation
 from mpi4py import MPI
-import sys
+# import sys
 import time
 
 class Prot_Hop:
@@ -471,7 +471,8 @@ class Prot_Hop:
                          OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
                          r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
                 
-                path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_serial'
+                # path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_serial'
+                path = r"/scratch/vlagerweij/simulations/Quantum_to_Transport/post-processing scripts/KOH systems/figures_serial"
                 plt.plot(self.OH_i)             
                 plt.xlim(0, self.size*self.pos_O.shape[0])      
                 plt.xlabel('timestep')      
@@ -562,6 +563,8 @@ class Prot_Hop:
                 plt.ylabel('g(r)')
                 plt.savefig(path + r'\rdf_H2OH2O')
 
+
+### TEST LOCATIONS ###
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
