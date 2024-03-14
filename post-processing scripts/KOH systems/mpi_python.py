@@ -313,7 +313,7 @@ class Prot_Hop:
         if self.rank == 0 and self.timit is True:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=48, r_max=None):
+    def rdf_compute_all(self, n, nb=128, r_max=None):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value

@@ -5,7 +5,7 @@ import scipy as sp
 path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_14/Figures'
 
 
-loaded = np.load("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/single_core.npz")
+loaded = np.load("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/single_core.npz")
 
 r = loaded['r_rdf']
 rdf_H2OH2O = loaded['rdf_H2OH2O']
