@@ -15,7 +15,7 @@ import os
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, T_ave=325, dt=0.5, cheap=True, timit=False):
+    def __init__(self, folder, T_ave=325, dt=0.5, cheap=True, time_it=False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -42,7 +42,7 @@ class Prot_Hop:
         self.error_flag = 0
         self.cheap = cheap
         self.folder = folder
-        self.timit = timit
+        self.time_it = time_it
 
         # Normal Startup Behaviour
         self.setting_properties_all()  # all cores
@@ -149,7 +149,7 @@ class Prot_Hop:
             self.cheap = False
         self.cheap = self.comm.bcast(self.cheap, root=0)
                     
-        if self.rank == 0 and self.timit is True:
+        if self.rank == 0 and self.time_it is True:
             print('Time after communication', time.time() - self.tstart)
 
     def recognize_molecules(self, n):
@@ -250,7 +250,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=10): 
+    def loop_timesteps_all(self, n_samples=100): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -310,7 +310,7 @@ class Prot_Hop:
                 self.rdf_compute_all(n)
             
 
-        if self.rank == 0 and self.timit is True:
+        if self.rank == 0 and self.time_it is True:
             print('Time calculating distances', time.time() - self.tstart)
 
     def rdf_compute_all(self, n, nb=128, r_max=None):
@@ -467,19 +467,19 @@ class Prot_Hop:
 
     def test_combining(self):
         if self.rank == 0:
-            if self.timit is True:
+            if self.time_it is True:
                 print('time to completion',  time.time() - self.tstart)
-            if self.size == 1:
-                np.savez(self.folder + r"/single_core.npz",
-                         OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
-                         r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
-                
+            if self.size == 1:                
                 # path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Repros\Quantum_to_Transport\post-processing scripts\KOH systems\figures_serial'
                 path = self.folder + r"/single_core"
                 try:
                     os.makedirs(path, exist_ok=True)
                 except OSError as error:
                     print(error, "Continuing")
+                    
+                np.savez(path + r"/output.npz",
+                         OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                         r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
 
                 plt.plot(self.OH_i)             
                 plt.xlim(0, self.size*self.pos_O.shape[0])      
@@ -516,7 +516,7 @@ class Prot_Hop:
                 plt.close()
                 
             else:
-                loaded = np.load(self.folder + r"/single_core.npz")
+                loaded = np.load(self.folder + r"/single_core/output.npz")
                 # test outputs of code
                 if np.allclose(self.OH_i, loaded['OH_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
                     print("Indexing OH between multicore and single core arrays differs more than acceptable")
@@ -542,7 +542,12 @@ class Prot_Hop:
                 try:
                     os.mkdir(path)
                 except OSError as error:
-                    print(error, "Continuing")
+                    print("os.mkdir threw error, but continued with except:", error)
+                
+                np.savez(path + r"/output.npz",
+                         OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                         r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
+                
                 plt.figure()
                 # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
                 plt.plot(self.OH_i)
@@ -591,7 +596,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5, time_it=True)
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation", dt=0.5)
 
 # Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/", dt=0.5)
