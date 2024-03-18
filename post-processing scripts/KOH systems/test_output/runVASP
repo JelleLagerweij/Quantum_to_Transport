@@ -1,0 +1,45 @@
+#!/bin/bash
+
+#SBATCH --job-name='MLMD rerun FAST'
+#SBATCH --partition=compute-p2
+#SBATCH --time=2-00:00:00
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --account=research-ME-pe
+# #SBATCH --exclusive
+#SBATCH --mem=32G
+#SBATCH --nodes=1
+
+module load 2023r1-gcc11
+module load openmpi
+module load openblas
+module load netlib-scalapack
+module load fftw
+module load hdf5
+
+# Start copying to compute node and time that activity
+start1=$(date +%s)
+echo "Starting to copy"
+cp -r  $SLURM_SUBMIT_DIR /tmp/$SLURM_JOBID  # copy files over to tmp drive located at the node
+cd /tmp/$SLURM_JOBID
+rm slurm-${SLURM_JOBID}.out  # make sure to not have a slurm output file in the tmp drive as that write back to submit folder
+stop1=$(date +%s)
+echo "Copying done, simulation starting, time elapesd is $(($stop1-$start1)) seconds"
+# End copying
+
+# Start running main program and time that activity
+start2=$(date +%s)
+srun ~/software/vasp/vasp6.4.2/vasp.6.4.2/bin/vasp_gam  # run your main executableaaa
+stop2=$(date +%s)
+echo "simulation done, copying starting, time elapesd is $(($stop2-$start2)) seconds"
+# End running main program
+
+# Start copying back to drive and time that activity
+start3=$(date +%s)
+rsync -a "$(pwd -P)/" ${SLURM_SUBMIT_DIR}  # when writing back to submit directory, rsync is the smarter solution
+rm -rf /tmp/$SLURM_JOBID  # remove file to clean up after yourself
+stop3=$(date +%s)
+echo "Done with copying with rsync and files are removed, closing down job, time elapesd is $(($stop3-$start3)) seconds"
+# End copying
+
+seff $SLURM_JOBID
