@@ -1,0 +1,35 @@
+# Comment in INCAR
+
+# Setting the type of calculation (0 = (AI)MD, 1 2 3 = relaxation method)
+IBRION = 0             ! set to MD
+ISYM = 0               ! No symetry
+LCHARG = .FALSE.        ! make the LCHARG files not writen to save data space
+LWAVE = .FALSE.         ! make WAVECAR not writen to save data space
+
+#############################################################
+# Setting the MD properties
+POTIM = 0.5               ! timestep size in fs
+NSW = 10000             ! number of timesteps set
+
+# Setting the thermostat
+MDALGO = 2           ! Langevin
+SMASS = 5            ! lattice mass
+
+TEBEG = 325             ! lets start at higher temperature
+TEEND = 325             ! end somewhere in the liquid regime
+ISIF = 2                ! Keep the cell shape and volume fixed, however update particle positions
+#############################################################
+
+#############################################################
+# Turn on machine learning to see what happens
+ML_LMLFF  = .TRUE.
+ML_MODE = run
+ML_OUTPUT_MODE = 0  # reduce output for long runs
+ML_OUTBLOCK = 10  # reduce output for long runs
+
+#############################################################
+# Additional settings for vasp efficiencies
+# Additional settings for vasp efficiencies while reselecting
+# NCORE = 4
+# LREAL= Auto
+KSPACING = 200

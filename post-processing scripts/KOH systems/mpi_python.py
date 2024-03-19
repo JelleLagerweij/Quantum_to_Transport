@@ -11,11 +11,12 @@ from mpi4py import MPI
 # import sys
 import time
 import os
+import h5py
 
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, T_ave=325, dt=0.5, cheap=True, time_it=False):
+    def __init__(self, folder, T_ave=325, cheap=True, time_it=False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -28,13 +29,9 @@ class Prot_Hop:
         Args:
             folder (string): path to hdf5 otput file
             T_ave (float/int, optional): The set simulation temperature in K. Defaults to 325.
-            dt (float/int, optional): The simulation timestep in fs. Defaults to 0.5.
-            cheap (bool, optional): skips less relevant interaction modes. Defaults to True.
         """
         self.tstart = time.time()
-        self.dt = dt
         self.species = ['H', 'O', 'K']
-        self.T_ave = T_ave
 
         self.comm = MPI.COMM_WORLD
         self.size = self.comm.Get_size()
@@ -65,25 +62,47 @@ class Prot_Hop:
         # loop over subsimulations
         for i in range(len(subsimulations)):
             self.df = Calculation.from_file(subsimulations[i])
-            data = self.df.structure[:].to_dict()
+            data_s = self.df.structure[:].to_dict()
+            data_f = self.df.force[9::10].to_dict()
             if i == 0:
-                # Load initial properties and arrays out of first simulation
-                self.N = np.array([data['elements'].count(self.species[0]),
-                                   data['elements'].count(self.species[1]),
-                                   data['elements'].count(self.species[2])])
-                self.L = data['lattice_vectors'][0, 0, 0]  # Boxsize
-                self.pos_all = self.L*data['positions']
+                # Load initial structure properties and arrays out of first simulation
+                self.N = np.array([data_s['elements'].count(self.species[0]),
+                                   data_s['elements'].count(self.species[1]),
+                                   data_s['elements'].count(self.species[2])])
+                self.L = data_s['lattice_vectors'][0, 0, 0]  # Boxsize
+                self.pos_all = self.L*data_s['positions']
+                
+                # load initial force properties and arrays out of first simulation
+                self.force = data_f['forces']
+                
+                # Read custom data out of HDF5 file (I do not know how to get it out of py4vasp)
+                hdf5_structure = h5py.File(subsimulations[i])
+                self.dt = hdf5_structure['/input/incar/POTIM'][()]
+                try:
+                    skips =  hdf5_structure['/input/incar/ML_OUTBLOCK'][()]
+                except:
+                    skips = 1
+                    print("no ML_OUTBLOCK in INCAR, skips = 1")
+                self.dt *= skips
+                self.T_set = float(hdf5_structure['/input/incar/TEBEG'][()])
             else:
                 # load new positions, but apply pbc unwrapping (# ARGHGH VASP)
-                pos = self.L*data['positions']
+                pos = self.L*data_s['positions']
                 dis_data = self.pos_all[-1, :, :] - pos[0, :, :]
                 dis_real = ((self.pos_all[-1, :, :] - pos[0, :, :] + self.L/2) % self.L - self.L/2)
                 pos -= (dis_real - dis_data)
                 # now matching together
                 self.pos_all = np.concatenate((self.pos_all, pos), axis=0)
+                
+                # load new forces and add to old array
+                force = data_f['forces']
+                self.force = np.concatenate((self.force, force), axis=0)
         
+        print("sizes of position and force arrays are", self.pos_all.shape, self.force.shape, "respectively, on rank", self.rank)
         # After putting multiple simulations together
         self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
+        self.force_split = np.array_split(self.force, self.size, axis=0)
+
         # calculate chunk sizes for communication
         self.chunks = [int]*self.size
         self.steps_split = [None]*self.size
@@ -114,11 +133,16 @@ class Prot_Hop:
             self.chunks = [None]*self.size
             self.L = float
             self.N = int
+            self.dt = float
+            self.T_set = float
         
         self.chunks = self.comm.bcast(self.chunks, root=0)
         self.L = self.comm.bcast(self.L, root=0)
         self.N = self.comm.bcast(self.N, root=0)
+        self.dt = self.comm.bcast(self.dt, root=0)
+        self.T_set =  self.comm.bcast(self.T_set, root=0)
         
+        # print('self.dt is', self.dt, 'self.T_set is', self.T_set, 'rank is', self.rank)
         # Asses the number of Hydrogens
         self.N_tot = np.sum(self.N)
         self.N_H = self.N[self.species.index('H')]
@@ -135,11 +159,15 @@ class Prot_Hop:
         
         if self.rank != 0:
             self.pos_all_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
+            self.force_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
             self.steps_split = [np.empty(self.chunks[i]) for i in range(self.size)]
 
         # Import the correct split position arrays
         self.pos = self.comm.scatter(self.pos_all_split, root=0)
+        self.force = self.comm.scatter(self.force_split, root=0)
         self.steps = self.comm.scatter(self.steps_split, root=0)
+        
+        print("sizes of position and force arrays are", self.pos.shape, self.force.shape, "respectively, on rank", self.rank)
 
         self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
         # communicate if cheapened calculation (less interaction types included)
@@ -250,7 +278,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=100): 
+    def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -313,7 +341,7 @@ class Prot_Hop:
         if self.rank == 0 and self.time_it is True:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=128, r_max=None):
+    def rdf_compute_all(self, n, nb=128, r_max=None, force_RDF=False):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
@@ -338,7 +366,7 @@ class Prot_Hop:
                 self.rdf_HH2O = np.zeros(self.r.size -1)
                 self.rdf_HK = np.zeros(self.r.size -1)
                 self.rdf_HH = np.zeros(self.r.size -1)
-        
+
         # Now calculate all rdf's (without rescaling them, will be done later)
         self.rdf_H2OH2O += np.histogram(self.d_H2OH2O, bins=self.r)[0]
         self.rdf_OHH2O += np.histogram(self.d_OHH2O, bins=self.r)[0]
@@ -464,6 +492,9 @@ class Prot_Hop:
         self.n_H3O = np.concatenate(self.n_H3O, axis=0)
         
         # RDF functionality has no need to do anything
+        
+        # Getting a time array
+        self.t = np.arange(self.OH_i.shape[0])*self.dt
 
     def test_combining(self):
         if self.rank == 0:
@@ -475,32 +506,29 @@ class Prot_Hop:
                 try:
                     os.makedirs(path, exist_ok=True)
                 except OSError as error:
-                    print(error, "Continuing")
+                    print("os.mkdir threw error, but continued with except:", error)
                     
                 np.savez(path + r"/output.npz",
                          OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
                          r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
 
-                plt.plot(self.OH_i)             
-                plt.xlim(0, self.size*self.pos_O.shape[0])      
-                plt.xlabel('timestep')      
+                plt.plot(self.t, self.OH_i)  
+                plt.xlabel('time/[fs]')
                 plt.ylabel('OH- atom index')
                 plt.savefig(path + r'/index_OH.png')
                 plt.close()
                 
                 plt.figure()
-                plt.plot(self.n_OH)
-                plt.xlim(0, self.size*self.pos_O.shape[0])
-                plt.xlabel('timestep')      
+                plt.plot(self.t, self.n_OH)
+                plt.xlabel('time/[fs]')      
                 plt.ylabel('number of OH-')
                 plt.savefig(path + r'/n_OH.png')  
                 plt.close()
                               
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
-                plt.plot(disp)
-                plt.xlim(0, self.size*self.pos_O.shape[0])
-                plt.xlabel('timestep')      
+                plt.plot(self.t[:-1], disp)
+                plt.xlabel('time/[fs]')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
                 plt.savefig(path + r'/dis_OH.png')
                 plt.close()
@@ -550,32 +578,29 @@ class Prot_Hop:
                 
                 plt.figure()
                 # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
-                plt.plot(self.OH_i)
+                plt.plot(self.t, self.OH_i)
                 for i in range(1, self.size):
-                    plt.axvline(x = self.pos_O.shape[0]*i, color = 'c')
-                plt.xlim(0, self.size*self.pos_O.shape[0])  
-                plt.xlabel('timestep')      
+                    plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+                plt.xlabel('time/[fs]')      
                 plt.ylabel('OH- atom index')          
                 plt.savefig(path + r'/index_OH.png')
                 plt.close()
                 
                 plt.figure()
-                plt.plot(self.n_OH)
+                plt.plot(self.t, self.n_OH)
                 for i in range(1, self.size):
-                    plt.axvline(x = self.pos_O.shape[0]*i, color = 'c')
-                plt.xlim(0, self.size*self.pos_O.shape[0])
-                plt.xlabel('timestep')      
+                    plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+                plt.xlabel('time/[fs]')      
                 plt.ylabel('number of OH-')
                 plt.savefig(path + r'/n_OH.png')
                 plt.close()
                 
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
-                plt.plot(disp)
+                plt.plot(self.t[:-1], disp)
                 for i in range(1, self.size):
-                    plt.axvline(x = self.pos_O.shape[0]*i, color = 'c')
-                plt.xlim(0, self.size*self.pos_O.shape[0])
-                plt.xlabel('timestep')      
+                    plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+                plt.xlabel('time/[fs]')      
                 plt.ylabel('displacement between timesteps/[Angstrom]')
                 plt.savefig(path + r'/dis_OH.png')
                 plt.close()
@@ -592,11 +617,11 @@ class Prot_Hop:
 
 
 ### TEST LOCATIONS ###
-# Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
-# Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1", dt=0.5)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/", dt=0.5)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", dt=0.5, time_it=True)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation", dt=0.5)
+# Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
+# Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output", time_it=True)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation", time_it=True)
 
-# Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/", dt=0.5)
+# Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")
