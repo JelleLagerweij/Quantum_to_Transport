@@ -1,11 +1,10 @@
 import numpy as np
 
 # Create an empty zero-length array
-empty_array = np.empty(0)
+N_OH = 3
+OH_0 = np.array([1, 2, 3])
+OH_i = np.array([1, 2, 3, 4])
 
 # Append items to the array
-empty_array = np.append(empty_array, 1)
-empty_array = np.append(empty_array, 2)
-empty_array = np.append(empty_array, 3)
-
-print(empty_array)
+c = np.setdiff1d(OH_i, OH_0)
+print(c)
