@@ -27,3 +27,5 @@
 *ML_LOGFILE
 *.h5
 *.npz
+*.xyz
+*.pbd
