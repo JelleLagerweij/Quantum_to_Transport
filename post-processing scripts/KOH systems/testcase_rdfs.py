@@ -1,11 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sp
+import os
 
-path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_14/Figures'
+path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_17/figures'
 
-
-loaded = np.load("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/single_core.npz")
+load = "/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/single_core/output.npz"
+load = os.path.normpath(load)
+loaded = np.load(load)
 
 r = loaded['r_rdf']
 rdf_H2OH2O = loaded['rdf_H2OH2O']

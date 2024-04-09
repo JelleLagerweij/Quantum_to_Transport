@@ -70,8 +70,7 @@ class Prot_Hop:
                     data_s = self.df.structure[:].to_dict()
                     data_f = self.df.force[:].to_dict()
                 except:
-                    skips = 10
-                    print("no ML_OUTBLOCK in INCAR, skips is set to 10", flush=True)
+                    skips = 1
                     data_s = self.df.structure[skips-1::skips].to_dict()
                     data_f = self.df.force[skips-1::skips].to_dict()
                 
@@ -104,10 +103,13 @@ class Prot_Hop:
                 # load new forces and add to old array
                 force = data_f['forces']
                 self.force = np.concatenate((self.force, force), axis=0)
+
+        self.t = np.arange(self.pos_all.shape[0])*self.dt
         
         # After putting multiple simulations together
         self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
         self.force_split = np.array_split(self.force, self.size, axis=0)
+        self.t_split = np.array_split(self.t, self.size)
 
         # calculate chunk sizes for communication
         self.chunks = [int]*self.size
@@ -167,11 +169,13 @@ class Prot_Hop:
             self.pos_all_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
             self.force_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
             self.steps_split = [np.empty(self.chunks[i]) for i in range(self.size)]
+            self.t_split = [np.empty(self.chunks[i]) for i in range(self.size)]
 
         # Import the correct split position arrays
         self.pos = self.comm.scatter(self.pos_all_split, root=0)
         self.force = self.comm.scatter(self.force_split, root=0)
         self.steps = self.comm.scatter(self.steps_split, root=0)
+        self.t = self.comm.scatter(self.t_split, root=0)
         
         self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
         self.n_max_all = self.comm.allreduce(self.n_max, op=MPI.SUM)
@@ -184,7 +188,7 @@ class Prot_Hop:
         self.cheap = self.comm.bcast(self.cheap, root=0)
                     
         if self.rank == 0 and self.verbose is True:
-            print('Time after communication', time.time() - self.tstart)
+            print('Time after communication', time.time() - self.tstart, flush=True)
 
     def recognize_molecules(self, n):
         """
@@ -233,10 +237,18 @@ class Prot_Hop:
             self.OH_i_s = OH_i  # set this in the first timestep
         else:
             if self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
-                print(f"Strange behaviour found, H3O+ created. Rank", self.rank, 'timestep ', self.steps[n])
+                print(f"Strange behaviour found, H3O+ created. Rank", self.rank, 'timestep ', self.t[n])
                 print(f"N_H3O+", self.n_H3O[n], 'N_OH', self.n_OH[n], flush=True)
+                
+                # issues = np.setdiff1d(OH_i, self.OH_i[n])
+                # for i in issues:
+                self.OH_i[n, :] = self.OH_i[n-1, :]  # use origional sorting by using last version as nothing changed
+                self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
+                
+                self.H2O_i[n, :] = self.H2O_i[n-1, :]  # use origional sorting by using last version as nothing changed
+                self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :] + self.L*self.H2O_shift
 
-            if (OH_i == self.OH_i_s).all():  # No reaction occured only check PBC
+            elif (OH_i == self.OH_i_s).all():  # No reaction occured only check PBC
                 self.OH_i[n, :] = self.OH_i[n-1, :]  # use origional sorting by using last version as nothing changed
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 
@@ -259,7 +271,7 @@ class Prot_Hop:
 
                     if d2[i_n] > 9:  # excape when jump too large
                         print("Strange behaviour found, reaction jump too far, d = ", np.sqrt(d2[i_n]), 'Angstrom',
-                                        "CPU rank=", self.rank, 'timestep', self.steps[n], flush=True)
+                              "CPU rank=", self.rank, 'timestep', self.steps[n], flush=True)
 
                     idx_OH_i = np.where(self.OH_i[n-1, :] == diff_old[i]) # get index in OH_i storage list
                     self.OH_i[n, idx_OH_i] = diff_new[i_n]  # update OH_i storage list
@@ -277,14 +289,15 @@ class Prot_Hop:
                     # Adjust for different PBC shifts in reaction
                     dis = (self.pos_O[n, self.H2O_i[n, idx_H2O_i], :] - self.pos_O[n-1, self.H2O_i[n-1, idx_H2O_i], :] + self.L/2) % self.L - self.L/2   # displacement vs old location
                     real_loc =self.pos_O[n-1, self.H2O_i[n-1, idx_H2O_i], :] + dis
-                    self.H2O_shift[idx_H2O_i, :] += np.round(real_loc - self.pos_O[n, self.H2O_i[n, idx_H2O_i], :]).astype(int)  # Correct shifting update for index
+                    self.H2O_shift[idx_H2O_i, :] += np.round((real_loc - self.pos_O[n, self.H2O_i[n, idx_H2O_i], :])/self.L).astype(int)  # Correct shifting update for index
+                    
                 
                 # Update all the positions
                 self.OH[n, :, :] = self.pos_O[n, self.OH_i[n, :], :] + self.L*self.OH_shift
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=1): 
+    def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -407,6 +420,9 @@ class Prot_Hop:
         # prepair gethering on all cores 1) All H3O+ stuf   f
         self.n_H3O = self.comm.gather(self.n_H3O, root=0)
         
+        # gather the time arrays as well
+        self.t = self.comm.gather(self.t, root=0)
+        
         # RDF's
         # First rescale all RDFs accordingly also prepaire for averaging using mpi.sum
         self.r_cent = (self.r[:-1] + self.r[1:])/2  # central point of rdf bins
@@ -486,7 +502,7 @@ class Prot_Hop:
                     self.H2O[n+1][:, [index, b_index[0]], :] = self.H2O[n+1][:, [b_index[0], index], :]
                     self.H2O_shift[n+1][[index, b_index[0]], :] = self.H2O_shift[n+1][[b_index[0], index], :]
             
-            #### this part only activates if there are reactions at stichting location
+            #### these two for loops only activate if there are reactions at stichting location
             idx_H2O = np.zeros_like(H2O_not_found, dtype=int)
             for i, H2O_i in enumerate(H2O_not_found):
                 idx_H2O[i] = np.where(self.H2O_i[n][-1, :] == H2O_i)[0][0]
@@ -508,13 +524,18 @@ class Prot_Hop:
                 OH_new = H2O_old
                 H2O_new = OH_old
                 
-                # check if index of OH_new is already the right one
                 idx_OH_new = np.where(self.OH_i[n+1][0, :] == OH_new)[0][0]
+                idx_H2O_new = np.where(self.H2O_i[n+1][0, :] == H2O_new)[0][0]
+                # check if index of OH_new is already the right one
+                
+                if self.verbose is True:
+                    print('matching up OH', OH_old, OH_new, idx_OH_old, idx_OH_new)
+                    print('matching up H2O', H2O_old, H2O_new, idx_H2O_old, idx_H2O_new)
                 if idx_OH_new != idx_OH_old: ## if not, swap around
                     self.OH_i[n+1][:, [idx_OH_old, idx_OH_new]] = self.OH_i[n+1][:, [idx_OH_new, idx_OH_old]]
                     self.OH[n+1][:, [idx_OH_old, idx_OH_new], :] = self.OH[n+1][:, [idx_OH_new, idx_OH_old], :]
                     self.OH_shift[n+1][[idx_OH_old, idx_OH_new], :] = self.OH_shift[n+1][[idx_OH_new, idx_OH_old], :]
-                idx_H2O_new = np.where(self.H2O_i[n+1][0, :] == H2O_new)[0][0]
+                
                 if idx_H2O_new != idx_H2O_old: ## if not, swap around
                     self.H2O_i[n+1][:, [idx_H2O_new, idx_H2O_new]] = self.H2O_i[n+1][:, [idx_H2O_new, idx_H2O_old]]
                     self.H2O[n+1][:, [idx_H2O_old, idx_H2O_new], :] = self.H2O[n+1][:, [idx_H2O_new, idx_H2O_old], :]
@@ -522,10 +543,16 @@ class Prot_Hop:
                 # so now we now for sure that idx_H2O_old=idx_H2O_new and index_OH_old=index_OH_new
                 # and that H2O_old=OH_new and that OH_old=H2O_new
                 
-                # Only check for pbc during a reaction for the OH and the H2O
+                # Only check for pbc during a reaction for the OH
                 dis = (self.OH[n+1][0, idx_OH_old, :] - self.OH[n][-1, idx_OH_old, :] + self.L/2) % self.L - self.L/2
                 real_loc = self.OH[n][-1, idx_OH_old, :] + dis
-                self.OH_shift[]
+                self.OH_shift[n][idx_OH_old, :] = np.round((real_loc - self.OH[n+1][0, idx_OH_old, :])/self.L).astype(int)
+                print(self.OH_shift[n][idx_OH_old, :], self.OH_shift[n+1][idx_OH_old, :])
+                
+                # Only check for pbc during a reaction for the H2O
+                dis = (self.H2O[n+1][0, idx_H2O_old, :] - self.H2O[n][-1, idx_H2O_old, :] + self.L/2) % self.L - self.L/2
+                real_loc = self.H2O[n][-1, idx_H2O_old, :] + dis
+                self.H2O_shift[n][idx_H2O_old, :] = np.round((real_loc - self.H2O[n+1][0, idx_H2O_old, :])/self.L).astype(int)
             #### Till here
 
             # Now adjust for passing PBC in the shift collumns. OH-
@@ -553,7 +580,7 @@ class Prot_Hop:
         # RDF functionality has no need to do anything
         
         # Getting a time array
-        self.t = np.arange(self.OH_i.shape[0])*self.dt
+        self.t = np.concatenate(self.t, axis=0)
 
     def test_combining(self):
         if self.rank == 0:
@@ -588,8 +615,18 @@ class Prot_Hop:
                 plt.figure()
                 plt.plot(self.t[:-1], disp)
                 plt.xlabel('time/[fs]')      
-                plt.ylabel('displacement between timesteps/[Angstrom]')
+                plt.ylabel('OH displacement between timesteps/[Angstrom]')
                 plt.savefig(path + r'/dis_OH.png')
+                plt.close()
+                
+                disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
+                plt.figure()
+                plt.plot(self.t[:-1], disp)
+                # for i in range(1, self.size):
+                #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+                plt.xlabel('time/[fs]')      
+                plt.ylabel('H2O displacement between timesteps/[Angstrom]')
+                plt.savefig(path + r'/dis_H2O.png')
                 plt.close()
                 
                 plt.figure()
@@ -662,11 +699,21 @@ class Prot_Hop:
                 disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
                 plt.figure()
                 plt.plot(self.t[:-1], disp)
-                for i in range(1, self.size):
-                    plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+                # for i in range(1, self.size):
+                #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
                 plt.xlabel('time/[fs]')      
-                plt.ylabel('displacement between timesteps/[Angstrom]')
+                plt.ylabel('OH displacement between timesteps/[Angstrom]')
                 plt.savefig(path + r'/dis_OH.png')
+                plt.close()
+                
+                disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
+                plt.figure()
+                plt.plot(self.t[:-1], disp)
+                # for i in range(1, self.size):
+                #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+                plt.xlabel('time/[fs]')      
+                plt.ylabel('H2O displacement between timesteps/[Angstrom]')
+                plt.savefig(path + r'/dis_H2O.png')
                 plt.close()
                 
                 plt.figure()
@@ -685,7 +732,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now", verbose=True)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now", verbose=True)
 
 # Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")
