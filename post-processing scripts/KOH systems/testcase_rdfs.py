@@ -5,7 +5,7 @@ import os
 
 path = r'C:\Users\vlagerweij\Documents\TU jaar 6\Project KOH(aq)\Progress_meeting_17/figures'
 
-load = "/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/single_core/output.npz"
+load = "C:/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/single_core/output.npz"
 load = os.path.normpath(load)
 loaded = np.load(load)
 
