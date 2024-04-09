@@ -352,6 +352,9 @@ class Prot_Hop:
                     
                     r_HK = (self.pos_K[n, self.idx_HK[1], :] - self.pos_H[n, self.idx_HK[0], :] + self.L/2) % self.L - self.L/2
                     self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
+                    
+                    self.d_KO_all = d_KO
+                    self.d_OO_all = d_OO
 
                 # Now compute RDF results
                 self.rdf_compute_all(n)
@@ -385,6 +388,8 @@ class Prot_Hop:
                 self.rdf_HH2O = np.zeros_like(self.rdf_H2OH2O)
                 self.rdf_HK = np.zeros_like(self.rdf_H2OH2O)
                 self.rdf_HH = np.zeros_like(self.rdf_H2OH2O)
+                self.rdf_KO_all = np.zeros_like(self.rdf_H2OH2O)
+                self.rdf_OO_all = np.zeros_like(self.rdf_H2OH2O)
 
         # Now calculate all rdf's (without rescaling them, will be done later)
         self.rdf_H2OH2O += np.histogram(self.d_H2OH2O, bins=self.r)[0]
@@ -397,10 +402,12 @@ class Prot_Hop:
             self.rdf_KK += np.histogram(self.d_KK, bins=self.r)[0]
     
         if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
-                self.rdf_HOH = np.histogram(self.d_HOH, bins=self.r)[0]
-                self.rdf_HH2O = np.histogram(self.d_HH2O, bins=self.r)[0]
-                self.rdf_HK = np.histogram(self.d_HK, bins=self.r)[0]
-                self.rdf_HH = np.histogram(self.d_HK, bins=self.r)[0]
+                self.rdf_HOH += np.histogram(self.d_HOH, bins=self.r)[0]
+                self.rdf_HH2O += np.histogram(self.d_HH2O, bins=self.r)[0]
+                self.rdf_HK += np.histogram(self.d_HK, bins=self.r)[0]
+                self.rdf_HH += np.histogram(self.d_HK, bins=self.r)[0]
+                self.rdf_KO_all += np.histogram(self.d_KO_all, bins=self.r)[0]
+                self.rdf_OO_all += np.histogram(self.d_OO_all, bins=self.r)[0]
         
         self.rdf_sample_counter += 1
         
@@ -443,6 +450,8 @@ class Prot_Hop:
             self.rdf_HH2O *= rescale/(self.N_H*self.N_H2O)
             self.rdf_HK *= rescale/(self.N_H*self.N_K)
             self.rdf_HH *= rescale/(self.N_H*(self.N_H - 1)*0.5)
+            self.rdf_KO_all *= rescale/(self.N_K*self.N_O)
+            self.rdf_OO_all *= rescale/(self.N_O*(self.N_O - 1)*0.5)
         
         # Then communicate these to main core.
         self.rdf_H2OH2O = self.comm.reduce(self.rdf_H2OH2O, op=MPI.SUM)
@@ -460,6 +469,8 @@ class Prot_Hop:
             self.rdf_HH2O = self.comm.reduce(self.rdf_HH2O, op=MPI.SUM, root=0)
             self.rdf_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
             self.rdf_HH = self.comm.reduce(self.rdf_HH, op=MPI.SUM, root=0)
+            self.rdf_KO_all = self.comm.reduce(self.rdf_KO_all, op=MPI.SUM, root=0)
+            self.rdf_OO_all = self.comm.reduce(self.rdf_OO_all, op=MPI.SUM, root=0)
 
         # Stich together correctly on main cores
         if self.rank == 0:
@@ -594,9 +605,15 @@ class Prot_Hop:
                     # print("os.mkdir threw error, but continued with except:", error)
                     error = 1
                     
-                np.savez(path + r"/output.npz",
-                         OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
-                         r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
+                if self.cheap is False:
+                    np.savez(path + r"/output.npz",
+                            OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                            r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O,
+                            rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_al, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
+                else:
+                    np.savez(path + r"/output.npz",
+                            OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                            r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
 
                 plt.plot(self.t, self.OH_i)  
                 plt.xlabel('time/[fs]')
