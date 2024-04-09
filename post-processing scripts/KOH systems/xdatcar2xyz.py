@@ -8,8 +8,8 @@ Created on Mon Sep 18 14:01:49 2023
 import os
 from ase.io import read, write
 
-# path = '../../../RPBE_Production/MLMD/10ps_Exp_Density/'
-path = '../RPBE_Production/6m/AIMD/'
+path = '../RPBE_Production/MLMD/100ps_Exp_Density/'
+# path = '../RPBE_Production/6m/AIMD/'
 folder = ['i_1']
 
 for i in range(len(folder)):

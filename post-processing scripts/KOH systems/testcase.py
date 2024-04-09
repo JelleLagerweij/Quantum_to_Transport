@@ -1,10 +1,18 @@
 import numpy as np
+from ase import Atoms
 
-# Create an empty zero-length array
-N_OH = 3
-OH_0 = np.array([1, 2, 3])
-OH_i = np.array([1, 2, 3, 4])
+# Example position arrays for multiple timesteps
+positions_combined = np.array([[[0, 0, 0], [1, 1, 1], [2, 2, 2]],
+                               [[0.1, 0.1, 0.1], [1.1, 1.1, 1.1], [2.1, 2.1, 2.1]],
+                               [[0.2, 0.2, 0.2], [1.2, 1.2, 1.2], [2.2, 2.2, 2.2]]])
 
-# Append items to the array
-c = np.setdiff1d(OH_i, OH_0)
-print(c)
+# Concatenate position arrays for all timesteps along the first axis
+# positions = np.concatenate(positions_combined, axis=0)
+
+# Example atomic symbols
+symbols = ['H', 'H', 'H']
+
+# Create an ASE Atoms object directly from combined position array
+atoms = Atoms(symbols, positions=positions_combined)
+
+# Now 'atoms' contains Atoms objects for all timesteps
