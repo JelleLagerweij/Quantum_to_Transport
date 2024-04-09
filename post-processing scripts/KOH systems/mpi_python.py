@@ -12,6 +12,7 @@ from mpi4py import MPI
 import time
 import os
 import h5py
+import ase
 
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
@@ -103,6 +104,11 @@ class Prot_Hop:
                 # load new forces and add to old array
                 force = data_f['forces']
                 self.force = np.concatenate((self.force, force), axis=0)
+        
+        # write origional vaspout.h5 to wrapped .xyz trajectory file if file does not exist
+        path = self.folder + '/traj_pure_wrapped.xyz'
+        if os.path.exists(path) is False:
+            self.write_to_xyz(data_s['elements'], self.pos_all % self.L, path)
 
         self.t = np.arange(self.pos_all.shape[0])*self.dt
         
@@ -190,6 +196,18 @@ class Prot_Hop:
         if self.rank == 0 and self.verbose is True:
             print('Time after communication', time.time() - self.tstart, flush=True)
 
+    def write_to_xyz(self, types, positions, name):
+        if self.verbose is True:
+            print(r'trajectory file is created and written', flush=True)
+        
+        # loop over all configurations and assign ase.Atoms state
+        configs = [None]*positions.shape[0]
+        for i in range(positions.shape[0]):
+            configs [i] = ase.Atoms(types, positions[i, :, :])
+        
+        # write with overwrite capability
+        ase.io.write(name, configs, append='wb')
+             
     def recognize_molecules(self, n):
         """
         Find the index of the Oxygen beloging to the OH- or H2O.
@@ -297,7 +315,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=10): 
+    def loop_timesteps_all(self, n_samples=1): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -609,7 +627,7 @@ class Prot_Hop:
                     np.savez(path + r"/output.npz",
                             OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
                             r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O,
-                            rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_al, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
+                            rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_all, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
                 else:
                     np.savez(path + r"/output.npz",
                             OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
@@ -749,7 +767,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now", verbose=True)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True, cheap=False)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now", verbose=True)
 
 # Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")
