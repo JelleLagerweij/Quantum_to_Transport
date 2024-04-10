@@ -5,7 +5,7 @@ import glob
 # import scipy.constants as co
 # import scipy.optimize as opt
 import matplotlib.pyplot as plt
-# import freud
+import freud
 from py4vasp import Calculation
 from mpi4py import MPI
 # import sys
@@ -17,7 +17,7 @@ import ase
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, T_ave=325, cheap=True, verbose=False):
+    def __init__(self, folder, T_ave=325, cheap=True, verbose=False, xyz_out=False, serial_check=False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -39,14 +39,26 @@ class Prot_Hop:
         self.rank = self.comm.Get_rank()
         self.error_flag = 0
         self.cheap = cheap
-        self.folder = folder
+        self.folder = os.path.normpath(folder)
         self.verbose = verbose
+        self.xyz_out = xyz_out
+        self.serial_check = serial_check
 
         # Normal Startup Behaviour
         self.setting_properties_all()  # all cores
         self.loop_timesteps_all()
         self.stitching_together_all()
-        self.test_combining()
+        
+        # afterwards on single core
+        if self.rank== 0:
+            self.compute_MSD()
+            self.save_results_main()
+            
+            if self.verbose is True:
+                print('time to completion',  time.time() - self.tstart)
+
+            if serial_check is True:
+                self.test_combining_main()
 
     def setting_properties_main(self):
         """
@@ -78,7 +90,8 @@ class Prot_Hop:
                 # Load initial structure properties and arrays out of first simulation
                 self.N = np.array([data_s['elements'].count(self.species[0]),
                                    data_s['elements'].count(self.species[1]),
-                                   data_s['elements'].count(self.species[2])])
+                                   data_s['elements'].count(self.species[2])],
+                                  dtype=int)
                 self.L = data_s['lattice_vectors'][0, 0, 0]  # Boxsize
                 self.pos_all = self.L*data_s['positions']
                 
@@ -105,11 +118,6 @@ class Prot_Hop:
                 force = data_f['forces']
                 self.force = np.concatenate((self.force, force), axis=0)
         
-        # write origional vaspout.h5 to wrapped .xyz trajectory file if file does not exist
-        path = self.folder + '/traj_pure_wrapped.xyz'
-        if os.path.exists(path) is False:
-            self.write_to_xyz(data_s['elements'], self.pos_all % self.L, path)
-
         self.t = np.arange(self.pos_all.shape[0])*self.dt
         
         # After putting multiple simulations together
@@ -146,7 +154,7 @@ class Prot_Hop:
         else:
             self.chunks = [None]*self.size
             self.L = float
-            self.N = int
+            self.N = np.empty(3, dtype=int)
             self.dt = float
             self.T_set = float
         
@@ -163,9 +171,9 @@ class Prot_Hop:
         self.N_O = self.N[self.species.index('O')]
         self.N_K = self.N[self.species.index('K')]
 
-        self.H = np.arange(self.N_H)
-        self.O = np.arange(self.N_H, self.N_H + self.N_O)
-        self.K = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K)
+        self.H_i = np.arange(self.N_H)
+        self.O_i  = np.arange(self.N_H, self.N_H + self.N_O)
+        self.K_i = np.arange(self.N_H + self.N_O, self.N_H + self.N_O + self.N_K)
 
         # Calculate and initiate the OH- tracking
         self.N_OH = self.N_K  # intended number of OH- from input file
@@ -195,20 +203,8 @@ class Prot_Hop:
                     
         if self.rank == 0 and self.verbose is True:
             print('Time after communication', time.time() - self.tstart, flush=True)
-
-    def write_to_xyz(self, types, positions, name):
-        if self.verbose is True:
-            print(r'trajectory file is created and written', flush=True)
-        
-        # loop over all configurations and assign ase.Atoms state
-        configs = [None]*positions.shape[0]
-        for i in range(positions.shape[0]):
-            configs [i] = ase.Atoms(types, positions[i, :, :])
-        
-        # write with overwrite capability
-        ase.io.write(name, configs, append='wb')
              
-    def recognize_molecules(self, n):
+    def recognize_molecules_all(self, n):
         """
         Find the index of the Oxygen beloging to the OH- or H2O.
 
@@ -256,7 +252,7 @@ class Prot_Hop:
         else:
             if self.N_OH != self.n_OH[n] or self.n_H3O[n] > 0:  # Exemption for H3O+ cases
                 print(f"Strange behaviour found, H3O+ created. Rank", self.rank, 'timestep ', self.t[n])
-                print(f"N_H3O+", self.n_H3O[n], 'N_OH', self.n_OH[n], flush=True)
+                print(f"N_H3O+", self.n_H3O[n], flush=True)
                 
                 # issues = np.setdiff1d(OH_i, self.OH_i[n])
                 # for i in issues:
@@ -324,9 +320,9 @@ class Prot_Hop:
             n_samples (int, optional): time between sampling rdfs. Defaults to 10.
         """
         # split the arrays up to per species description
-        self.pos_H = self.pos[:, self.H, :]
-        self.pos_O = self.pos[:, self.O, :]
-        self.pos_K = self.pos[:, self.K, :]
+        self.pos_H = self.pos[:, self.H_i, :]
+        self.pos_O = self.pos[:, self.O_i, :]
+        self.pos_K = self.pos[:, self.K_i, :]
 
         # Create per species-species interactions indexing arrays
         self.idx_KK = np.triu_indices(self.N_K, k=1)
@@ -342,7 +338,7 @@ class Prot_Hop:
             r_HO = (self.pos_O[n, self.idx_HO[1], :] - self.pos_H[n, self.idx_HO[0], :] + self.L/2) % self.L - self.L/2
             self.d_HO = np.sqrt(np.sum(r_HO**2, axis=1))
             
-            self.recognize_molecules(n)
+            self.recognize_molecules_all(n)
             if n % n_samples == 0:
                 # Calculate all other distances for RDF's and such when needed
                 r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
@@ -445,6 +441,9 @@ class Prot_Hop:
         # prepair gethering on all cores 1) All H3O+ stuf   f
         self.n_H3O = self.comm.gather(self.n_H3O, root=0)
         
+        self.K = self.comm.gather(self.pos_K, root=0)
+        self.H = self.comm.gather(self.pos_H, root=0)
+
         # gather the time arrays as well
         self.t = self.comm.gather(self.t, root=0)
         
@@ -476,8 +475,7 @@ class Prot_Hop:
         self.rdf_OHH2O = self.comm.reduce(self.rdf_OHH2O, op=MPI.SUM, root=0)       
         self.rdf_KOH = self.comm.reduce(self.rdf_KOH, op=MPI.SUM, root=0)
         self.rdf_KH2O = self.comm.reduce(self.rdf_KH2O, op=MPI.SUM, root=0)
-        
-        
+
         if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
             self.rdf_OHOH = self.comm.reduce(self.rdf_OHOH, op=MPI.SUM, root=0)
             self.rdf_KK = self.comm.reduce(self.rdf_KK, op=MPI.SUM, root=0)
@@ -576,7 +574,6 @@ class Prot_Hop:
                 dis = (self.OH[n+1][0, idx_OH_old, :] - self.OH[n][-1, idx_OH_old, :] + self.L/2) % self.L - self.L/2
                 real_loc = self.OH[n][-1, idx_OH_old, :] + dis
                 self.OH_shift[n][idx_OH_old, :] = np.round((real_loc - self.OH[n+1][0, idx_OH_old, :])/self.L).astype(int)
-                print(self.OH_shift[n][idx_OH_old, :], self.OH_shift[n+1][idx_OH_old, :])
                 
                 # Only check for pbc during a reaction for the H2O
                 dis = (self.H2O[n+1][0, idx_H2O_old, :] - self.H2O[n][-1, idx_H2O_old, :] + self.L/2) % self.L - self.L/2
@@ -606,160 +603,245 @@ class Prot_Hop:
         # H3O+
         self.n_H3O = np.concatenate(self.n_H3O, axis=0)
         
+        # K+
+        self.K = np.concatenate(self.K, axis=0)
+        
+        # H
+        self.H = np.concatenate(self.H,  axis=0)
+
         # RDF functionality has no need to do anything
         
         # Getting a time array
         self.t = np.concatenate(self.t, axis=0)
 
-    def test_combining(self):
-        if self.rank == 0:
-            if self.verbose is True:
-                print('time to completion',  time.time() - self.tstart)
-            if self.size == 1:                
-                path = self.folder + r"/single_core"
-                try:
-                    os.makedirs(path, exist_ok=True)
-                except OSError as error:
-                    # print("os.mkdir threw error, but continued with except:", error)
-                    error = 1
-                    
-                if self.cheap is False:
-                    np.savez(path + r"/output.npz",
-                            OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
-                            r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O,
-                            rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_all, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
-                else:
-                    np.savez(path + r"/output.npz",
-                            OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
-                            r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
+    def compute_MSD(self):
+        # prepaire windowed MSD calculation mode with freud
+        msd = freud.msd.MSD(mode='window')
+        
+        self.msd_OH = msd.compute(self.OH).msd*self.N_OH
+        self.msd_H2O = msd.compute(self.H2O).msd*self.N_H2O
+        self.msd_K = msd.compute(self.K).msd*self.N_K
 
-                plt.plot(self.t, self.OH_i)  
-                plt.xlabel('time/[fs]')
-                plt.ylabel('OH- atom index')
-                plt.savefig(path + r'/index_OH.png')
-                plt.close()
-                
-                plt.figure()
-                plt.plot(self.t, self.n_OH)
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('number of OH-')
-                plt.savefig(path + r'/n_OH.png')  
-                plt.close()
-                              
-                disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
-                plt.figure()
-                plt.plot(self.t[:-1], disp)
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('OH displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'/dis_OH.png')
-                plt.close()
-                
-                disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
-                plt.figure()
-                plt.plot(self.t[:-1], disp)
-                # for i in range(1, self.size):
-                #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('H2O displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'/dis_H2O.png')
-                plt.close()
-                
-                plt.figure()
-                plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
-                plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
-                plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
-                plt.xlabel('radius in A')
-                plt.ylabel('g(r)')
-                plt.legend()
-                plt.savefig(path + r'/rdf_H2OH2O')
-                plt.close()
-                
-            else:
-                path = self.folder + r"/multi_core"
-                try:
-                    os.mkdir(path)
-                except OSError as error:
-                    # print("os.mkdir threw error, but continued with except:", error)
-                    error = 1
-                np.savez(path + r"/output.npz",
-                         OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
-                         r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
-                try:
-                    loaded = np.load(self.folder + r"/single_core/output.npz")
-                    # test outputs of code
-                    if np.allclose(self.OH_i, loaded['OH_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("Indexing OH between multicore and single core arrays differs more than acceptable")
-                    if np.allclose(self.OH, loaded['OH'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("Positions OH between multicore and single core arrays differs more than acceptable")
-                    if np.allclose(self.H2O_i, loaded['H2O_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("Indexing H2O between multicore and single core arrays differs more than acceptable")
-                    if np.allclose(self.H2O, loaded['H2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("Positions H2O between multicore and single core arrays differs more than acceptable")
-                    if np.allclose(self.rdf_H2OH2O, loaded['rdf_H2OH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("RDF H2O-H2O between multicore and single core arrays differs more than acceptable")
-                        print("maximum difference =", np.max(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), loaded['r_rdf'][np.argmax(self.rdf_H2OH2O - loaded['rdf_H2OH2O'])])
-                        plt.plot(self.r_cent, np.abs(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), label='water - water')
-                    if np.allclose(self.rdf_OHH2O, loaded['rdf_OHH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("RDF OH-H2O between multicore and single core arrays differs more than acceptable")
-                        print("maximum difference =", np.max(self.rdf_OHH2O - loaded['rdf_OHH2O']), loaded['r_rdf'][np.argmax(self.rdf_OHH2O - loaded['rdf_OHH2O'])])
-                        plt.plot(self.r_cent, np.abs(self.rdf_OHH2O - loaded['rdf_OHH2O']), label='hydroxide - water')
-                    if np.allclose(self.rdf_KH2O, loaded['rdf_KH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-                        print("RDF K-H2O between multicore and single core arrays differs more than acceptable")
-                        print("maximum difference =", np.max(self.rdf_KH2O - loaded['rdf_KH2O']), loaded['r_rdf'][np.argmax(self.rdf_KH2O - loaded['rdf_KH2O'])])
-                        plt.plot(self.r_cent, np.abs(self.rdf_KH2O - loaded['rdf_KH2O']), label='potassium - water')
-                        plt.savefig(path + r'/rdf_diff.png')
-                        plt.close()
-                except:
-                    print('No single core checking file availlable', flush=True)
-                
-                plt.figure()
-                # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
-                plt.plot(self.t, self.OH_i)
-                for i in range(1, self.size):
-                    plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('OH- atom index')          
-                plt.savefig(path + r'/index_OH.png')
-                plt.close()
-                
-                plt.figure()
-                plt.plot(self.t, self.n_OH)
-                for i in range(1, self.size):
-                    plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('number of OH-')
-                plt.savefig(path + r'/n_OH.png')
-                plt.close()
-                
-                disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
-                plt.figure()
-                plt.plot(self.t[:-1], disp)
-                # for i in range(1, self.size):
-                #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('OH displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'/dis_OH.png')
-                plt.close()
-                
-                disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
-                plt.figure()
-                plt.plot(self.t[:-1], disp)
-                # for i in range(1, self.size):
-                #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-                plt.xlabel('time/[fs]')      
-                plt.ylabel('H2O displacement between timesteps/[Angstrom]')
-                plt.savefig(path + r'/dis_H2O.png')
-                plt.close()
-                
-                plt.figure()
-                plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
-                plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
-                plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
-                plt.legend()
-                plt.xlabel('radius in A')
-                plt.ylabel('g(r)')
-                plt.savefig(path + r'/rdf_H2OH2O')
-                plt.close()
+    def save_results_main(self):
+        # separate single core or multi core folders
+        if self.size == 0:
+            path = self.folder + r"/single_core/"
+        else:
+            path = self.folder
+        self.save_numpy_files_main(path)
+        
+        # save position output if needed as .xyz (4 seperate files)
+        if self.xyz_out is True:
+            self.write_to_xyz_main()
+
+        # create large dataframe with output
+        df = h5py.File(path + 'output.h5', "w")
+        
+        # rdfs
+        df.create_dataset("rdf/r", data=self.r_cent)
+        df.create_dataset("rdf/g_H2OH2O(r)", data=self.rdf_H2OH2O)
+        df.create_dataset("rdf/g_OHH2O(r)", data=self.rdf_OHH2O)
+        df.create_dataset("rdf/g_KH2O(r)", data=self.rdf_KH2O)
+        if self.cheap is False:
+            df.create_dataset("rdf/g_HOH(r)", data=self.rdf_HOH)
+            df.create_dataset("rdf/g_HK(r)", data=self.rdf_HK)
+            df.create_dataset("rdf/g_HH(r)", data=self.rdf_HH)
+            df.create_dataset("rdf/g_KO(r)", data=self.rdf_KO_all)
+            df.create_dataset("rdf/g_OO(r)", data=self.rdf_OO_all)
+        
+        # msds
+        df.create_dataset("msd/OH", data=self.msd_OH)
+        df.create_dataset("msd/H2O", data=self.msd_H2O)
+        df.create_dataset("msd/K", data=self.msd_K)
+        
+        # properties over time
+        df.create_dataset("transient/index_OH", data=self.OH_i)
+        df.create_dataset("transient/index_H2O", data=self.H2O_i)
+        df.create_dataset("transient/index_K", data=self.K_i)
+        df.create_dataset("transient/pos_OH", data=self.OH)
+        df.create_dataset("transient/pos_H2O", data=self.H2O)
+        df.create_dataset("transient/pos_K", data=self.K)
+        
+        df.close()
+
+    def write_to_xyz_main(self):
+        # unprocessed positions
+        types_up = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
+        pos_up = self.pos_all
+        
+        # processed positions
+        types_p = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
+        pos_p = np.concatenate((self.OH, self.H2O, self.K, self.H), axis=1)
+        
+        if self.verbose is True:
+            print(r'trajectory file is created and written', flush=True)
+        
+        # loop over all configurations and assign ase.Atoms state
+        configs_up_w = [None]*self.pos_all.shape[0]
+        configs_up_uw = [None]*self.pos_all.shape[0]
+        configs_p_w = [None]*self.pos_all.shape[0]
+        configs_p_uw = [None]*self.pos_all.shape[0]
+        for i in range(self.pos_all.shape[0]):
+            configs_p_w [i] = ase.Atoms(types_p, pos_p[i, :, :])
+            configs_p_uw [i] = ase.Atoms(types_p, pos_p[i, :, :]%self.L)
+            configs_up_w [i] = ase.Atoms(types_up, pos_up[i, :, :])
+            configs_up_uw [i] = ase.Atoms(types_up, pos_up[i, :, :]%self.L)
+        
+        # write with overwrite capability
+        ase.io.write(os.path.normpath(self.folder+'/traj_unprocessed_unwraped.xyz'), configs_up_uw, append='wb')
+        ase.io.write(os.path.normpath(self.folder+'/traj_unprocessed_wraped.xyz'), configs_up_w, append='wb')
+        ase.io.write(os.path.normpath(self.folder+'/traj_processed_unwraped.xyz'), configs_p_uw, append='wb')
+        ase.io.write(os.path.normpath(self.folder+'/traj_processed_wraped.xyz'), configs_p_w, append='wb')
+        if self.verbose is True:
+            print("writing is done", flush=True)
+      
+    def save_numpy_files_main(self, path):
+        try:
+            os.makedirs(path, exist_ok=True)
+        except OSError as error:
+            # print("os.mkdir threw error, but continued with except:", error)
+            error = 1
+        if self.cheap is False:
+            np.savez(path + r"/output.npz",
+                    OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                    r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O,
+                    rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_all, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
+        else:
+            np.savez(path + r"/output.npz",
+                    OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
+                    r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
+            
+    def test_combining_main(self):
+        if self.size == 1:                
+            path = self.folder + r"/single_core"
+            try:
+                os.mkdir(path)
+            except OSError as error:
+                error = 1
+        
+            # plt.plot(self.t, self.OH_i)  
+            # plt.xlabel('time/[fs]')
+            # plt.ylabel('OH- atom index')
+            # plt.savefig(os.path.normpath(path + r'/index_OH.png'))
+            # plt.close()
+            
+            # plt.figure()
+            # plt.plot(self.t, self.n_OH)
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('number of OH-')
+            # plt.savefig(path + r'/n_OH.png')  
+            # plt.close()
+                            
+            # disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
+            # plt.figure()
+            # plt.plot(self.t[:-1], disp)
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('OH displacement between timesteps/[Angstrom]')
+            # plt.savefig(os.path.normpath(path + r'/dis_OH.png'))
+            # plt.close()
+            
+            # disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
+            # plt.figure()
+            # plt.plot(self.t[:-1], disp)
+            # # for i in range(1, self.size):
+            # #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('H2O displacement between timesteps/[Angstrom]')
+            # plt.savefig(os.path.normpath(path + r'/dis_H2O.png'))
+            # plt.close()
+            
+            # plt.figure()
+            # plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
+            # plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
+            # plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
+            # plt.xlabel('radius in A')
+            # plt.ylabel('g(r)')
+            # plt.legend()
+            # plt.savefig(os.path.normpath(path + r'/rdf_H2OH2O'))
+            # plt.close()
+            
+        else:
+            path = self.folder + r"/multi_core"
+            try:
+                os.mkdir(path)
+            except OSError as error:
+                error = 1
+            try:
+                loaded = np.load(self.folder + r"/single_core/output.npz")
+                # test outputs of code
+                if np.allclose(self.OH_i, loaded['OH_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Indexing OH between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.OH, loaded['OH'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Positions OH between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.H2O_i, loaded['H2O_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Indexing H2O between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.H2O, loaded['H2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("Positions H2O between multicore and single core arrays differs more than acceptable")
+                if np.allclose(self.rdf_H2OH2O, loaded['rdf_H2OH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("RDF H2O-H2O between multicore and single core arrays differs more than acceptable")
+                    print("maximum difference =", np.max(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), loaded['r_rdf'][np.argmax(self.rdf_H2OH2O - loaded['rdf_H2OH2O'])])
+                    plt.plot(self.r_cent, np.abs(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), label='water - water')
+                if np.allclose(self.rdf_OHH2O, loaded['rdf_OHH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("RDF OH-H2O between multicore and single core arrays differs more than acceptable")
+                    print("maximum difference =", np.max(self.rdf_OHH2O - loaded['rdf_OHH2O']), loaded['r_rdf'][np.argmax(self.rdf_OHH2O - loaded['rdf_OHH2O'])])
+                    plt.plot(self.r_cent, np.abs(self.rdf_OHH2O - loaded['rdf_OHH2O']), label='hydroxide - water')
+                if np.allclose(self.rdf_KH2O, loaded['rdf_KH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
+                    print("RDF K-H2O between multicore and single core arrays differs more than acceptable")
+                    print("maximum difference =", np.max(self.rdf_KH2O - loaded['rdf_KH2O']), loaded['r_rdf'][np.argmax(self.rdf_KH2O - loaded['rdf_KH2O'])])
+                    plt.plot(self.r_cent, np.abs(self.rdf_KH2O - loaded['rdf_KH2O']), label='potassium - water')
+                    plt.savefig(path + r'/rdf_diff.png')
+                    plt.close()
+            except:
+                print('No single core checking file availlable, checking is useless', flush=True)
+            
+            # plt.figure()
+            # # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
+            # plt.plot(self.t, self.OH_i)
+            # for i in range(1, self.size):
+            #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('OH- atom index')          
+            # plt.savefig(os.path.normpath(path + r'/index_OH.png'))
+            # plt.close()
+            
+            # plt.figure()
+            # plt.plot(self.t, self.n_OH)
+            # for i in range(1, self.size):
+            #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('number of OH-')
+            # plt.savefig(os.path.normpath(path + r'/n_OH.png'))
+            # plt.close()
+            
+            # disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
+            # plt.figure()
+            # plt.plot(self.t[:-1], disp)
+            # # for i in range(1, self.size):
+            # #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('OH displacement between timesteps/[Angstrom]')
+            # plt.savefig(os.path.normpath(path + r'/dis_OH.png'))
+            # plt.close()
+            
+            # disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
+            # plt.figure()
+            # plt.plot(self.t[:-1], disp)
+            # # for i in range(1, self.size):
+            # #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
+            # plt.xlabel('time/[fs]')      
+            # plt.ylabel('H2O displacement between timesteps/[Angstrom]')
+            # plt.savefig(os.path.normpath(path + r'/dis_H2O.png'))
+            # plt.close()
+            
+            # plt.figure()
+            # plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
+            # plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
+            # plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
+            # plt.legend()
+            # plt.xlabel('radius in A')
+            # plt.ylabel('g(r)')
+            # plt.savefig(os.path.normpath(path + r'/rdf_H2OH2O'))
+            # plt.close()
 
 
 ### TEST LOCATIONS ###
@@ -767,7 +849,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True, cheap=False)
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now", verbose=True)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/")
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now")
 
 # Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")

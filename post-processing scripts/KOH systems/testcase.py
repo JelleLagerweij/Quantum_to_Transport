@@ -1,18 +1,22 @@
 import numpy as np
-from ase import Atoms
+import h5py
+import os
+import pandas as pd
 
-# Example position arrays for multiple timesteps
-positions_combined = np.array([[[0, 0, 0], [1, 1, 1], [2, 2, 2]],
-                               [[0.1, 0.1, 0.1], [1.1, 1.1, 1.1], [2.1, 2.1, 2.1]],
-                               [[0.2, 0.2, 0.2], [1.2, 1.2, 1.2], [2.2, 2.2, 2.2]]])
+folder = os.path.normpath(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now")
 
-# Concatenate position arrays for all timesteps along the first axis
-# positions = np.concatenate(positions_combined, axis=0)
+loaded = np.load(folder + r"/single_core/output.npz")
+output = h5py.File(folder + r"/single_core/output.h5", "w")
 
-# Example atomic symbols
-symbols = ['H', 'H', 'H']
+rdfs = loaded["r_rdf"]
+rdf_H2OH2O = loaded["rdf_H2OH2O"]
 
-# Create an ASE Atoms object directly from combined position array
-atoms = Atoms(symbols, positions=positions_combined)
+dset = output.create_dataset("rdfs/r", data=rdfs)
+dset = output.create_dataset("rdfs/g_H2OH2O", data=rdfs)
 
-# Now 'atoms' contains Atoms objects for all timesteps
+data = np.hstack((rdfs, rdf_H2OH2O))
+df = pd.DataFrame(data, columns=["r", "g_H2OH2O"])
+
+dset2 = output.create_dataset("rdfs", data=df)
+
+output.close()
