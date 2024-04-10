@@ -1,14 +1,9 @@
 import numpy as np
-# import pandas as pd
-# import scipy as sp
 import glob
-# import scipy.constants as co
-# import scipy.optimize as opt
 import matplotlib.pyplot as plt
 import freud
 from py4vasp import Calculation
 from mpi4py import MPI
-# import sys
 import time
 import os
 import h5py
@@ -77,15 +72,23 @@ class Prot_Hop:
             self.df = Calculation.from_file(subsimulations[i])
 
             if i == 0:
+                hdf5_structure = h5py.File(subsimulations[i])
                 try:
-                    hdf5_structure = h5py.File(subsimulations[i])
                     skips =  hdf5_structure['/input/incar/ML_OUTBLOCK'][()]
-                    data_s = self.df.structure[:].to_dict()
-                    data_f = self.df.force[:].to_dict()
                 except:
                     skips = 1
-                    data_s = self.df.structure[skips-1::skips].to_dict()
-                    data_f = self.df.force[skips-1::skips].to_dict()
+                data_s = self.df.structure[:].to_dict()
+                data_f = self.df.force[:].to_dict()
+                self.stress = self.df.stress[:].to_dict()['stress']
+
+                e_n = np.array(['total energy   ETOTAL',
+                                'nose kinetic   EPS',
+                                'nose potential ES',
+                                'kinetic energy EKIN',
+                                'temperature    TEIN'])
+                energies  = self.df.energy[:].to_dict()
+                self.energy = np.stack((energies[e_n[0]], energies[e_n[1]], energies[e_n[2]], energies[e_n[3]], energies[e_n[4]]), axis=1)
+                
                 
                 # Load initial structure properties and arrays out of first simulation
                 self.N = np.array([data_s['elements'].count(self.species[0]),
@@ -103,20 +106,26 @@ class Prot_Hop:
                 self.dt *= skips
                 self.T_set = float(hdf5_structure['/input/incar/TEBEG'][()])
             else:
-                data_s = self.df.structure[skips-1::skips].to_dict()
-                data_f = self.df.force[skips-1::skips].to_dict()
-
+                data_s = self.df.structure[:].to_dict()
+                data_f = self.df.force[:].to_dict()
+                stress = self.df.stress[:].to_dict()['stress']
+                energies  = self.df.energy[:].to_dict()
+                energies = np.stack((energies[e_n[0]], energies[e_n[1]], energies[e_n[2]], energies[e_n[3]], energies[e_n[4]]), axis=1)
+                
                 # load new positions, but apply pbc unwrapping (# ARGHGH VASP)
                 pos = self.L*data_s['positions']
                 dis_data = self.pos_all[-1, :, :] - pos[0, :, :]
                 dis_real = ((self.pos_all[-1, :, :] - pos[0, :, :] + self.L/2) % self.L - self.L/2)
                 pos -= (dis_real - dis_data)
+
                 # now matching together
                 self.pos_all = np.concatenate((self.pos_all, pos), axis=0)
                 
-                # load new forces and add to old array
+                # load new forces, stresses and energies and add to old array
                 force = data_f['forces']
                 self.force = np.concatenate((self.force, force), axis=0)
+                self.stress = np.concatenate((self.stress, stress), axis=0)
+                self.energy = np.concatenate((self.energy, energies), axis=0)
         
         self.t = np.arange(self.pos_all.shape[0])*self.dt
         
@@ -635,7 +644,7 @@ class Prot_Hop:
             self.write_to_xyz_main()
 
         # create large dataframe with output
-        df = h5py.File(path + 'output.h5', "w")
+        df = h5py.File(path + '/output.h5', "w")
         
         # rdfs
         df.create_dataset("rdf/r", data=self.r_cent)
@@ -661,7 +670,8 @@ class Prot_Hop:
         df.create_dataset("transient/pos_OH", data=self.OH)
         df.create_dataset("transient/pos_H2O", data=self.H2O)
         df.create_dataset("transient/pos_K", data=self.K)
-        
+        df.create_dataset("transient/stresses", data=self.stress)
+        df.create_dataset("transient/energies", data=self.energy)
         df.close()
 
     def write_to_xyz_main(self):
@@ -849,7 +859,8 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/")
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now")
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=True)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True)
 
 # Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")
