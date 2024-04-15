@@ -2,7 +2,7 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 import freud
-from py4vasp import Calculation
+# from py4vasp import Calculation
 from mpi4py import MPI
 import time
 import os
@@ -69,52 +69,37 @@ class Prot_Hop:
         subsimulations = sorted(glob.glob(self.folder+r"/vaspout*"))
         # loop over subsimulations
         for i in range(len(subsimulations)):
-            self.df = Calculation.from_file(subsimulations[i])
+            self.df = h5py.File(subsimulations[i])
 
             if i == 0:
-                hdf5_structure = h5py.File(subsimulations[i])
                 try:
-                    skips =  hdf5_structure['/input/incar/ML_OUTBLOCK'][()]
+                    skips =  self.df['/input/incar/ML_OUTBLOCK'][()]
                 except:
                     skips = 1
-                data_s = self.df.structure[:].to_dict()
-                data_f = self.df.force[:].to_dict()
-                self.stress = self.df.stress[:].to_dict()['stress']
-
-                e_n = np.array(['total energy   ETOTAL',
-                                'nose kinetic   EPS',
-                                'nose potential ES',
-                                'kinetic energy EKIN',
-                                'temperature    TEIN'])
-                energies  = self.df.energy[:].to_dict()
-                self.energy = np.stack((energies[e_n[0]], energies[e_n[1]], energies[e_n[2]], energies[e_n[3]], energies[e_n[4]]), axis=1)
+                self.pos_all = self.df['intermediate/ion_dynamics/position_ions'][()]
+                self.force = self.df['intermediate/ion_dynamics/forces'][()]
+                self.stress = self.df['intermediate/ion_dynamics/stress'][()]
+                self.energy = self.df['intermediate/ion_dynamics/energies'][()]
                 
                 
                 # Load initial structure properties and arrays out of first simulation
-                self.N = np.array([data_s['elements'].count(self.species[0]),
-                                   data_s['elements'].count(self.species[1]),
-                                   data_s['elements'].count(self.species[2])],
-                                  dtype=int)
-                self.L = data_s['lattice_vectors'][0, 0, 0]  # Boxsize
-                self.pos_all = self.L*data_s['positions']
+                self.N = self.df['results/positions/number_ion_types'][()]
+                self.L = self.df['results/positions/lattice_vectors'][()][0, 0]  # Boxsize
+                self.pos_all *= self.L
                 
-                # load initial force properties and arrays out of first simulation
-                self.force = data_f['forces']
-                
+                # load initial force properties and arrays out of first simulation                
                 # Read custom data out of HDF5 file (I do not know how to get it out of py4vasp)
-                self.dt = hdf5_structure['/input/incar/POTIM'][()]
+                self.dt = self.df['/input/incar/POTIM'][()]
                 self.dt *= skips
-                self.T_set = float(hdf5_structure['/input/incar/TEBEG'][()])
-                hdf5_structure.close()
+                self.T_set = float(self.df['/input/incar/TEBEG'][()])
+
             else:
-                data_s = self.df.structure[:].to_dict()
-                data_f = self.df.force[:].to_dict()
-                stress = self.df.stress[:].to_dict()['stress']
-                energies  = self.df.energy[:].to_dict()
-                energies = np.stack((energies[e_n[0]], energies[e_n[1]], energies[e_n[2]], energies[e_n[3]], energies[e_n[4]]), axis=1)
-                
+                pos = self.df['intermediate/ion_dynamics/position_ions'][()]*self.L
+                force = self.df['intermediate/ion_dynamics/forces'][()]
+                stress = self.df['intermediate/ion_dynamics/stress'][()]
+                energy = self.df['intermediate/ion_dynamics/energies'][()]
+                               
                 # load new positions, but apply pbc unwrapping (# ARGHGH VASP)
-                pos = self.L*data_s['positions']
                 dis_data = self.pos_all[-1, :, :] - pos[0, :, :]
                 dis_real = ((self.pos_all[-1, :, :] - pos[0, :, :] + self.L/2) % self.L - self.L/2)
                 pos -= (dis_real - dis_data)
@@ -123,11 +108,11 @@ class Prot_Hop:
                 self.pos_all = np.concatenate((self.pos_all, pos), axis=0)
                 
                 # load new forces, stresses and energies and add to old array
-                force = data_f['forces']
                 self.force = np.concatenate((self.force, force), axis=0)
                 self.stress = np.concatenate((self.stress, stress), axis=0)
-                self.energy = np.concatenate((self.energy, energies), axis=0)
-        
+                self.energy = np.concatenate((self.energy, energy), axis=0)
+            self.df.close()
+
         self.t = np.arange(self.pos_all.shape[0])*self.dt
         
         # After putting multiple simulations together
@@ -863,9 +848,9 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
-# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
+Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=False)
-Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
+# Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
 # Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")
