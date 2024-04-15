@@ -2,12 +2,13 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 import freud
-# from py4vasp import Calculation
+# from py4vasp import Calculationma
 from mpi4py import MPI
 import time
 import os
 import h5py
 import ase
+from ase import io
 
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
@@ -30,6 +31,7 @@ class Prot_Hop:
         self.species = ['H', 'O', 'K']
 
         self.comm = MPI.COMM_WORLD
+        
         self.size = self.comm.Get_size()
         self.rank = self.comm.Get_rank()
         self.error_flag = 0
@@ -54,7 +56,7 @@ class Prot_Hop:
 
             if serial_check is True:
                 self.test_combining_main()
-
+        
     def setting_properties_main(self):
         """
         Load the output file into dedicated arrays
@@ -67,10 +69,13 @@ class Prot_Hop:
 
         # finds all vaspout*.h5 files in folder and orders them alphabetically
         subsimulations = sorted(glob.glob(self.folder+r"/vaspout*"))
+        if len(subsimulations) == 0:
+            print(f'Fatal error, no such vaspout*.h5 file availlable at {self.folder}')
+            self.comm.Abort()
+
         # loop over subsimulations
         for i in range(len(subsimulations)):
             self.df = h5py.File(subsimulations[i])
-
             if i == 0:
                 try:
                     skips =  self.df['/input/incar/ML_OUTBLOCK'][()]
@@ -329,7 +334,7 @@ class Prot_Hop:
             self.idx_HK = np.mgrid[0:self.N_H, 0:self.N_K].reshape(2, self.N_H*self.N_K)
 
         for n in range(self.n_max):  # Loop over all timesteps
-            if (n % 10000 == 0) and (self.verbose is True):
+            if (n % 10000 == 0) and (self.verbose is True) and (n > 0):
                 print("time is:", self.t[n], "rank is:", self.rank, flush=True)
             # Calculate only OH distances for OH- recognition
             r_HO = (self.pos_O[n, self.idx_HO[1], :] - self.pos_H[n, self.idx_HO[0], :] + self.L/2) % self.L - self.L/2
@@ -663,7 +668,7 @@ class Prot_Hop:
         df.create_dataset("transient/energies", data=self.energy)
         df.close()
 
-    def write_to_xyz_main(self):
+    def write_to_xyz_all(self, type):
         # unprocessed positions
         types_up = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
         pos_up = self.pos_all
@@ -693,7 +698,7 @@ class Prot_Hop:
         ase.io.write(os.path.normpath(self.folder+'/traj_processed_wraped.xyz'), configs_p_w, append='wb')
         if self.verbose is True:
             print("writing is done", flush=True)
-      
+        
     def save_numpy_files_main(self, path):
         try:
             os.makedirs(path, exist_ok=True)
@@ -848,9 +853,9 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/mnt/c/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
-Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
+# Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=False)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
-# Traj = Prot_Hop(r"/home/jelle/simulations/RPBE_Production/6m/AIMD/i_1/part_1/")
+Traj = Prot_Hop(r"/scratch/vlagerweij/simulations/RPBE_Production/6m/MLMD/refit/rerun_fast", cheap=True, xyz_out=True, verbose=True)
