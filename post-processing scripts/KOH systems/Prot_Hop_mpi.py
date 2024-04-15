@@ -723,10 +723,10 @@ class Prot_Hop:
             configs[i] = ase.Atoms(types, pos[i, :, :])
         if self.verbose is True:
             print(f'recalculating done: writing {name} started on {self.rank}')
-        ase.io.write(os.path.normpath(self.folder+name), configs, append='wb')
+        ase.io.write(os.path.normpath(self.folder+name), configs, append='wb', parallel=False)
 
         if self.verbose is True:
-            print(f'writing {name} completed on {self.rank}')
+            print(f'writing {self.folder+name} completed on {self.rank}')
 
     def save_numpy_files_main(self, path):
         try:
@@ -884,7 +884,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False)
-Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=False)
+Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
 # Traj = Prot_Hop(r"/scratch/vlagerweij/simulations/RPBE_Production/6m/MLMD/refit/rerun_fast", cheap=True, xyz_out=True, verbose=True)
