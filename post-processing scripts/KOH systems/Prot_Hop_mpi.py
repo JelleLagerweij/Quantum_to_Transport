@@ -47,10 +47,12 @@ class Prot_Hop:
         self.stitching_together_all()
         
         # afterwards on single core
-        if self.rank== 0:
+        if self.rank == 0:
             self.compute_MSD()
-            self.save_results_main()
             
+        self.save_results_all()
+
+        if self.rank == 0:
             if self.verbose is True:
                 print('time to completion',  time.time() - self.tstart)
 
@@ -624,7 +626,7 @@ class Prot_Hop:
         self.msd_H2O = msd.compute(self.H2O).msd
         self.msd_K = msd.compute(self.K).msd
 
-    def save_results_main(self):
+    def save_results_all(self):
         # separate single core or multi core folders
         if self.size == 0:
             path = self.folder + r"/single_core/"
@@ -632,10 +634,32 @@ class Prot_Hop:
             path = self.folder
         self.save_numpy_files_main(path)
         
-        # save position output if needed as .xyz (4 seperate files)
+        # create the output.h5 file always on main core
+        if self.rank == 0:
+            self.create_dataframe_main(path)
+        
+        # save position output if needed as .xyz (4 seperate files) on separate cores
+        # communicate arrays
         if self.xyz_out is True:
-            self.write_to_xyz_main()
+            if self.rank == 0:
+                shape = self.pos_all.shape
+                self.pos_pro = np.concatenate((self.OH, self.H2O, self.K, self.H), axis=1)
+            else:
+                shape = None
+            
+            shape = self.comm.bcast(shape, root=0)
+            
+            if self.rank !=0:
+                self.pos_all = np.empty(shape)
+                self.pos_pro = np.empty(shape)
+            
+            self.pos_pro = self.comm.bcast(self.pos_pro, root=0)
+            self.pos_all = self.comm.bcast(self.pos_all, root=0)  
+            for i in range(4):
+                if (i+1) % self.size == self.rank:
+                    self.write_to_xyz_single_not_main(i)
 
+    def create_dataframe_main(self, path):
         # create large dataframe with output
         df = h5py.File(path + '/output.h5', "w")
         
@@ -668,37 +692,42 @@ class Prot_Hop:
         df.create_dataset("transient/energies", data=self.energy)
         df.close()
 
-    def write_to_xyz_all(self, type):
-        # unprocessed positions
-        types_up = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
-        pos_up = self.pos_all
-        
-        # processed positions
-        types_p = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
-        pos_p = np.concatenate((self.OH, self.H2O, self.K, self.H), axis=1)
-        
+    def write_to_xyz_single_not_main(self, type):
+        # assesing tasks correctly
+        if type == 0:
+            ## unwrapped unprocessed postitions
+            types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
+            pos = self.pos_all
+            name = '/traj_unprocessed_unwrapped.xyz'
+        if type == 1:
+            ## wrapped processed postitions
+            types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
+            pos = self.pos_all % self.L
+            name = '/traj_unprocessed_wrapped.xyz'
+        if type == 2:
+            ## unwrapped unprocessed postitions
+            types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
+            pos = self.pos_pro
+            name = '/traj_processed_unwrapped.xyz'
+        if type == 3:
+            ## wrapped processed postitions
+            types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
+            pos = self.pos_pro % self.L
+            name = '/traj_processed_wrapped.xyz'
+
         if self.verbose is True:
-            print(r'trajectory file is created and written', flush=True)
+            print(f'prepare for writing {name} started on {self.rank}')
         
-        # loop over all configurations and assign ase.Atoms state
-        configs_up_w = [None]*self.pos_all.shape[0]
-        configs_up_uw = [None]*self.pos_all.shape[0]
-        configs_p_w = [None]*self.pos_all.shape[0]
-        configs_p_uw = [None]*self.pos_all.shape[0]
+        configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
-            configs_p_w [i] = ase.Atoms(types_p, pos_p[i, :, :])
-            configs_p_uw [i] = ase.Atoms(types_p, pos_p[i, :, :]%self.L)
-            configs_up_w [i] = ase.Atoms(types_up, pos_up[i, :, :])
-            configs_up_uw [i] = ase.Atoms(types_up, pos_up[i, :, :]%self.L)
-        
-        # write with overwrite capability
-        ase.io.write(os.path.normpath(self.folder+'/traj_unprocessed_unwraped.xyz'), configs_up_uw, append='wb')
-        ase.io.write(os.path.normpath(self.folder+'/traj_unprocessed_wraped.xyz'), configs_up_w, append='wb')
-        ase.io.write(os.path.normpath(self.folder+'/traj_processed_unwraped.xyz'), configs_p_uw, append='wb')
-        ase.io.write(os.path.normpath(self.folder+'/traj_processed_wraped.xyz'), configs_p_w, append='wb')
+            configs[i] = ase.Atoms(types, pos[i, :, :])
         if self.verbose is True:
-            print("writing is done", flush=True)
-        
+            print(f'recalculating done: writing {name} started on {self.rank}')
+        ase.io.write(os.path.normpath(self.folder+name), configs, append='wb')
+
+        if self.verbose is True:
+            print(f'writing {name} completed on {self.rank}')
+
     def save_numpy_files_main(self, path):
         try:
             os.makedirs(path, exist_ok=True)
