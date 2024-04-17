@@ -8,6 +8,7 @@ import time
 import os
 import h5py
 import ase
+import sys
 from ase import io
 
 class Prot_Hop:
@@ -58,6 +59,7 @@ class Prot_Hop:
 
             if serial_check is True:
                 self.test_combining_main()
+        exit()
         
     def setting_properties_main(self):
         """
@@ -622,13 +624,13 @@ class Prot_Hop:
         # prepaire windowed MSD calculation mode with freud
         msd = freud.msd.MSD(mode='window')
         
-        self.msd_OH = msd.compute(self.OH).msd
-        self.msd_H2O = msd.compute(self.H2O).msd
-        self.msd_K = msd.compute(self.K).msd
+        self.msd_OH = msd.compute(self.OH).msd*self.N_OH
+        self.msd_H2O = msd.compute(self.H2O).msd*self.N_H2O
+        self.msd_K = msd.compute(self.K).msd*self.N_K
 
     def save_results_all(self):
         # separate single core or multi core folders
-        if self.size == 0:
+        if self.size == 1:
             path = self.folder + r"/single_core/"
         else:
             path = self.folder
@@ -657,7 +659,7 @@ class Prot_Hop:
             self.pos_all = self.comm.bcast(self.pos_all, root=0)  
             for i in range(4):
                 if (i+1) % self.size == self.rank:
-                    self.write_to_xyz_single_not_main(i)
+                    self.write_to_xyz_all(i)
 
     def create_dataframe_main(self, path):
         # create large dataframe with output
@@ -692,41 +694,39 @@ class Prot_Hop:
         df.create_dataset("transient/energies", data=self.energy)
         df.close()
 
-    def write_to_xyz_single_not_main(self, type):
+    def write_to_xyz_all(self, type):
         # assesing tasks correctly
         if type == 0:
             ## unwrapped unprocessed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
             pos = self.pos_all
-            name = '/traj_unprocessed_unwrapped.xyz'
+            name = '/traj_unprocessed_unwrapped'
         if type == 1:
             ## wrapped processed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
             pos = self.pos_all % self.L
-            name = '/traj_unprocessed_wrapped.xyz'
+            name = '/traj_unprocessed_wrapped'
         if type == 2:
             ## unwrapped unprocessed postitions
             types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
             pos = self.pos_pro
-            name = '/traj_processed_unwrapped.xyz'
+            name = '/traj_processed_unwrapped'
         if type == 3:
             ## wrapped processed postitions
             types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
             pos = self.pos_pro % self.L
-            name = '/traj_processed_wrapped.xyz'
+            name = '/traj_processed_wrapped'
 
         if self.verbose is True:
-            print(f'prepare for writing {name} started on {self.rank}')
+            print(f'prepare for writing {name} started on rank: {self.rank}')
         
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
-            configs[i] = ase.Atoms(types, pos[i, :, :])
-        if self.verbose is True:
-            print(f'recalculating done: writing {name} started on {self.rank}')
-        ase.io.write(os.path.normpath(self.folder+name), configs, append='wb', parallel=False)
+            configs[i] = ase.Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
+        ase.io.write(os.path.normpath(self.folder+name), configs, format='xyz', parallel=False)
 
         if self.verbose is True:
-            print(f'writing {self.folder+name} completed on {self.rank}')
+            print(f'writing {self.folder+name} completed on rank: {self.rank}')
 
     def save_numpy_files_main(self, path):
         try:
@@ -751,47 +751,6 @@ class Prot_Hop:
                 os.mkdir(path)
             except OSError as error:
                 error = 1
-        
-            # plt.plot(self.t, self.OH_i)  
-            # plt.xlabel('time/[fs]')
-            # plt.ylabel('OH- atom index')
-            # plt.savefig(os.path.normpath(path + r'/index_OH.png'))
-            # plt.close()
-            
-            # plt.figure()
-            # plt.plot(self.t, self.n_OH)
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('number of OH-')
-            # plt.savefig(path + r'/n_OH.png')  
-            # plt.close()
-                            
-            # disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
-            # plt.figure()
-            # plt.plot(self.t[:-1], disp)
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('OH displacement between timesteps/[Angstrom]')
-            # plt.savefig(os.path.normpath(path + r'/dis_OH.png'))
-            # plt.close()
-            
-            # disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
-            # plt.figure()
-            # plt.plot(self.t[:-1], disp)
-            # # for i in range(1, self.size):
-            # #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('H2O displacement between timesteps/[Angstrom]')
-            # plt.savefig(os.path.normpath(path + r'/dis_H2O.png'))
-            # plt.close()
-            
-            # plt.figure()
-            # plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
-            # plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
-            # plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
-            # plt.xlabel('radius in A')
-            # plt.ylabel('g(r)')
-            # plt.legend()
-            # plt.savefig(os.path.normpath(path + r'/rdf_H2OH2O'))
-            # plt.close()
             
         else:
             path = self.folder + r"/multi_core"
@@ -884,7 +843,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False)
-Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
+# Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
-# Traj = Prot_Hop(r"/scratch/vlagerweij/simulations/RPBE_Production/6m/MLMD/refit/rerun_fast", cheap=True, xyz_out=True, verbose=True)
+Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
