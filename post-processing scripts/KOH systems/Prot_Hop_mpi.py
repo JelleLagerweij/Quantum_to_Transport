@@ -347,8 +347,8 @@ class Prot_Hop:
             self.recognize_molecules_all(n)
             if n % n_samples == 0:
                 # Calculate all other distances for RDF's and such when needed
-                r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
-                d_OO = np.sqrt(np.sum(r_OO**2, axis=1))
+                self.r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
+                d_OO = np.sqrt(np.sum(self.r_OO**2, axis=1))
                 self.d_H2OH2O = d_OO[((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n])))]
                 self.d_OHH2O = d_OO[(((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))) |
                                     (((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))))]  # ((a and b) or (b and a)) conditional
@@ -360,8 +360,8 @@ class Prot_Hop:
 
                 if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
                     self.d_OHOH = d_OO[((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))]
-                    r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
-                    self.d_KK = np.sqrt(np.sum(r_KK**2, axis=1))
+                    self.r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
+                    self.d_KK = np.sqrt(np.sum(self.r_KK**2, axis=1))
 
                 if self.cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
                     self.d_HOH = self.d_HO[np.isin(self.idx_HO[1], self.OH_i[n])]
@@ -378,6 +378,7 @@ class Prot_Hop:
 
                 # Now compute RDF results
                 self.rdf_compute_all(n)
+                # self.rdf_force_compute_all(n)  # enter the force rdf
             
 
         if self.rank == 0 and self.verbose is True:
@@ -393,10 +394,10 @@ class Prot_Hop:
 
             self.rdf_sample_counter = 0
             # set basic properties
-            self.r = np.histogram(self.d_H2OH2O, bins=nb, range=(r_min, r_max))[1] # array with outer edges
+            self.r = np.histogram(self.d_H2OH2O, bins=nb + 1, range=(r_min, r_max))[1] # array with outer edges
             
             # Standard rdf pairs
-            self.rdf_H2OH2O = np.zeros(self.r.size -1, dtype=float)
+            self.rdf_H2OH2O = np.zeros(self.r.size - 1, dtype=float)
             self.rdf_OHH2O = np.zeros_like(self.rdf_H2OH2O)
             self.rdf_KOH = np.zeros_like(self.rdf_H2OH2O)
             self.rdf_KH2O = np.zeros_like(self.rdf_H2OH2O)
@@ -430,6 +431,56 @@ class Prot_Hop:
                 self.rdf_OO_all += np.histogram(self.d_OO_all, bins=self.r)[0]
         
         self.rdf_sample_counter += 1
+
+    def rdf_force_compute_all(self, n, nb=256, r_max=None, force_RDF=False):
+        # RDF startup scheme
+        if n == 0:
+            # Split up the forces when needed
+            self.F_H = self.force[:, self.H_i, :]
+            self.F_O = self.force[:, self.O_i, :]
+            self.F_K = self.force[:, self.K_i, :]
+            
+            # set standard maximum rdf value
+            r_min = 1
+            if r_max == None:
+                r_max = self.L/2  # np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
+
+            self.f_rdf_sample_counter = 0
+            # set basic properties
+            self.f_r = np.histogram(self.d_H2OH2O, bins=nb, range=(r_min, r_max))[1] # array with outer edges
+            
+            # Standard rdf pairs
+            self.f_rdf_H2OH2O = np.zeros(self.f_r.size, dtype=float)
+            self.f_rdf_OHH2O = np.zeros_like(self.f_rdf_H2OH2O)
+            self.f_rdf_KOH = np.zeros_like(self.f_rdf_H2OH2O)
+            self.f_rdf_KH2O = np.zeros_like(self.f_rdf_H2OH2O)
+            if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+                self.f_rdf_OHOH = np.zeros_like(self.f_rdf_H2OH2O)
+                self.f_rdf_KK = np.zeros_like(self.f_rdf_H2OH2O)
+            if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
+                self.f_rdf_HOH = np.zeros_like(self.f_rdf_H2OH2O)
+                self.f_rdf_HH2O = np.zeros_like(self.f_rdf_H2OH2O)
+                self.f_rdf_HK = np.zeros_like(self.f_rdf_H2OH2O)
+                self.f_rdf_HH = np.zeros_like(self.f_rdf_H2OH2O)
+                self.f_rdf_KO_all = np.zeros_like(self.f_rdf_H2OH2O)
+                self.f_rdf_OO_all = np.zeros_like(self.f_rdf_H2OH2O)
+
+        # When i and j are of the same species with N particles
+        # every iteration F_rdf += sum_j=0->N[ sum_i=j+1->N  ( vec_F_j dot vec_r_ij * (1/r_ij^3) * Heaviside(r - r_ij) ) ]
+        # Need to calculate after all iterations are done and stiching together
+        # F_rdf *= L^3/(2*pi*kB*T*N^2)
+    
+        # When i and j are of different species N_1 and N_2
+        # every iteration F_rdf+= sum_j=0->N_1 [ sum_j=0->N_2 ( vec_F_j dot vec_r_ij * (1/r_ij^3) * Heaviside(r - r_ij) )  ]
+        # Need to calculate after all iterations are done and stiching together
+        # F_rdf *= L^3/(2*pi*kB*T*N_1 * N_2)
+        
+        # Test with f_rdf_KK as test array
+        F_KK = self.F_K[n, self.idx_KK[0], :]  # make array same size as d_KK by repeating using idx_KK array 
+        self.r_rdf_KK += np.einsum('ij,ij->i', self.F_K[n, self.idx_KK[0], :], self.r_KK)/(np.power(self.d_KK, 3))*np.where(r < self.d_KK, 1, 0)  # computes vec_F_j dot vec_r_ij * 1/r_ij^3
+        # Ideas for later
+        r_H2OH2O = self.r_OO[((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))), :]
+        F_H2O = self.force[n, ]
         
     def stitching_together_all(self):
         # prepair gethering on all cores 1) All OH- stuff
@@ -670,6 +721,11 @@ class Prot_Hop:
         df.create_dataset("rdf/g_H2OH2O(r)", data=self.rdf_H2OH2O)
         df.create_dataset("rdf/g_OHH2O(r)", data=self.rdf_OHH2O)
         df.create_dataset("rdf/g_KH2O(r)", data=self.rdf_KH2O)
+        
+        if self.N_K > 1:
+            df.create_dataset("rdf/g_OHOH(r)", data=self.rdf_OHOH)
+            df.create_dataset("rdf/g_KK(r)", data=self.rdf_KK)
+
         if self.cheap is False:
             df.create_dataset("rdf/g_HOH(r)", data=self.rdf_HOH)
             df.create_dataset("rdf/g_HK(r)", data=self.rdf_HK)
@@ -723,7 +779,7 @@ class Prot_Hop:
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
             configs[i] = ase.Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
-        ase.io.write(os.path.normpath(self.folder+name), configs, format='xyz', parallel=False)
+        ase.io.write(os.path.normpath(self.folder+name), configs, format='extxyz', parallel=False)
 
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
@@ -842,8 +898,8 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
-# Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False)
+# Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=False, verbose=True)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
-# Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
+Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
-Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
+# Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)

@@ -168,7 +168,7 @@ for i in range(len(folder)):
     Temp[i, :] = Traj.temperature(plotting=True, filter_width=0, skip=1, name=name)
     E_ham[i, :] = Traj.pseudo_hamiltonian(plotting=True, filter_width=0, skip=1, name=name)
 
-    # msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
+    msdOH = Traj.windowed_MSD(loc_OH, n_KOH)
     # msdK = Traj.windowed_MSD(loc_K, n_KOH)
     # msdH2O = Traj.windowed_MSD(loc_H2O, n_H2O)
 
@@ -190,11 +190,11 @@ for i in range(len(folder)):
     plt.plot(Traj.t*1e12, index - Traj.N_H, label=folder[i])
     plt.savefig('index_OH_old.png')
 
-    # n = np.arange(start=1000, stop=len(Traj.t), step=100)
-    # n = np.arange(start=10000, stop=len(Traj.t), step=100)
-    # t_test = Traj.t[n]
-    # MSD_test = msdOH[n]
-    # diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
+    n = np.arange(start=1000, stop=len(Traj.t), step=100)
+    n = np.arange(start=10000, stop=len(Traj.t), step=100)
+    t_test = Traj.t[n]
+    MSD_test = msdOH[n]
+    diff_OH[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
     # MSD_test = msdK[n]
     # diff_K[i] = Traj.diffusion(MSD_test, n_KOH, t=t_test, plotting=True)
     # MSD_test = msdH2O[n]
