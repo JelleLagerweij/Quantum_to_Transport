@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import freud
 # from py4vasp import Calculationma
 from mpi4py import MPI
+from mpi4py.util import pkl5
 import time
 import os
 import h5py
@@ -188,10 +189,19 @@ class Prot_Hop:
             self.force_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
             self.steps_split = [np.empty(self.chunks[i]) for i in range(self.size)]
             self.t_split = [np.empty(self.chunks[i]) for i in range(self.size)]
+        
+        # Now pickle the arrays to be able to send larger arrays
+        self.pos_all_split = pkl5._dumps(self.pos_all_split)
+        self.force_split = pkl5._dumps(self.force_split)
 
         # Import the correct split position arrays
         self.pos = self.comm.scatter(self.pos_all_split, root=0)
         self.force = self.comm.scatter(self.force_split, root=0)
+        
+        # Now redo together
+        self.pos = pkl5.loads(self.pos)
+        self.force = pkl5.loads(self.force)
+
         self.steps = self.comm.scatter(self.steps_split, root=0)
         self.t = self.comm.scatter(self.t_split, root=0)
         
@@ -899,7 +909,7 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=False, verbose=True)
-# Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
-Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
+Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
+# Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
-# Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
+# Traj = Prot_Hop(r"./", cheap=False, xyz_out=True, verbose=True)
