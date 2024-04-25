@@ -26,6 +26,7 @@
 *XDATCAR
 *REPORT
 *ML_LOGFILE
+*ML_FF
 *.h5
 *.npz
 *.xyz
