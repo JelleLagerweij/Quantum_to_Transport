@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import numpy as np
 from mpi4py import MPI
 from mpi4py.util.pkl5 import _dumps, _loads
@@ -25,3 +26,30 @@ received_serialized_data = comm.scatter(serialized_data, root=0)
 received_array = _loads(received_serialized_data)
 
 print("Rank:", rank, "Received array size:", received_array.size)
+=======
+from mpi4py import MPI
+
+# Initialize MPI
+comm = MPI.COMM_WORLD
+
+# Get the predefined error handler MPI.ERRORS_ARE_FATAL
+errhandler = MPI.ERRORS_ARE_FATAL
+
+# Set the error handler
+comm.Set_errhandler(errhandler)
+i= comm.rank
+
+print(f'entre loop, i = {i}', flush=True)
+
+if i == 4:
+    print(f'on rank {i}, things should error')
+    try:
+        # Simulate an error (replace this with your actual code)
+        raise ValueError("Oehoe")
+
+    except Exception as e:
+        # This exception will trigger the error handler since we've set ERRORS_ARE_FATAL
+        pass
+
+print('done', flush=True)
+>>>>>>> c2363854429ab53ed94759b525d9264bcd387798

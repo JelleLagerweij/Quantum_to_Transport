@@ -63,7 +63,11 @@ class Prot_Post:
     def diffusion(self, specie, t_start=1000, steps=2000, m=False, plotting=False):
         # Settings for the margins and fit method.
         margin = 0.005  # cut away range at left and right side
+<<<<<<< HEAD
         Minc = 100  # minimum number of points included in the fit
+=======
+        Minc = 125  # minimum number of points included in the fit
+>>>>>>> c2363854429ab53ed94759b525d9264bcd387798
         Mmax = 250  # maximum number of points included in the fit
         er_max = 0.1  # maximum allowed error
         
