@@ -26,17 +26,7 @@
 *XDATCAR
 *REPORT
 *ML_LOGFILE
-*ML_FF
 *.h5
 *.npz
 *.xyz
-*traj_*
-*CONTCAR
-*POSCAR
-*IBZKPT
-*ICONST
-*POTCAR
-*INCAR
-*runVASP
-*run_me.sh
 *.pbd
