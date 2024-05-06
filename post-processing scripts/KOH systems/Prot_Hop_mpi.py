@@ -685,9 +685,9 @@ class Prot_Hop:
         # prepaire windowed MSD calculation mode with freud
         msd = freud.msd.MSD(mode='window')
         
-        self.msd_OH = msd.compute(self.OH).msd*self.N_OH
-        self.msd_H2O = msd.compute(self.H2O).msd*self.N_H2O
-        self.msd_K = msd.compute(self.K).msd*self.N_K
+        self.msd_OH = msd.compute(self.OH).msd
+        self.msd_H2O = msd.compute(self.H2O).msd
+        self.msd_K = msd.compute(self.K).msd
 
     def save_results_all(self):
         # separate single core or multi core folders
