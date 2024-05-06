@@ -63,16 +63,11 @@ class Prot_Post:
     def diffusion(self, specie, t_start=1000, steps=2000, m=False, plotting=False):
         # Settings for the margins and fit method.
         margin = 0.005  # cut away range at left and right side
-<<<<<<< HEAD
-        Minc = 100  # minimum number of points included in the fit
-=======
         Minc = 125  # minimum number of points included in the fit
->>>>>>> c2363854429ab53ed94759b525d9264bcd387798
         Mmax = 250  # maximum number of points included in the fit
         er_max = 0.1  # maximum allowed error
         
         try:
-            N_specie = getattr(self, f"N_{specie}")
             MSD_in = getattr(self, f"msd_{specie}")
         except:
             ValueError("Input variable indicates non existing specie")
@@ -126,7 +121,7 @@ class Prot_Post:
             plt.grid()
             plt.legend()
 
-        fact = (1e-20)/(6*N_specie)
+        fact = (1e-20)/(6)
         return D*fact
         
 
