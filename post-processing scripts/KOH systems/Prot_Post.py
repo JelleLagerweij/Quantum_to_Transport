@@ -72,12 +72,18 @@ class Prot_Post:
         except:
             ValueError("Input variable indicates non existing specie")
         
-        n = np.logspace(np.log10(t_start), np.log10(self.t[-1]), steps, dtype=int)
-        n = n[:np.where(n > self.t.shape)[0][0]]  # make very sure to not overflow time array
+        # n = np.logspace(np.log10(t_start), np.log10(self.t[-1]), steps, dtype=int)
+        # n = n[:np.where(n > self.t.shape)[0][0]]  # make very sure to not overflow time array
         
-        t = self.t[n]*1e-15
-        MSD_in = MSD_in[n]
-
+        # t = self.t[n]*1e-15
+        t = self.t
+        t = t[t_start:]
+        step = (t.shape[0] ) // steps
+        t = t[::step]*1e-15
+        
+        MSD_in = MSD_in[t_start:]
+        MSD_in = MSD_in[::step]
+        
         t_log = np.log10(t)
         MSD_log_in = np.log10(np.abs(MSD_in))
         ibest = 'failed'

@@ -756,22 +756,22 @@ class Prot_Hop:
             ## unwrapped unprocessed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
             pos = self.pos_all
-            name = '/traj_unprocessed_unwrapped'
+            name = '/traj_unprocessed_unwrapped.xyz'
         if type == 1:
             ## wrapped processed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
             pos = self.pos_all % self.L
-            name = '/traj_unprocessed_wrapped'
+            name = '/traj_unprocessed_wrapped.xyz'
         if type == 2:
             ## unwrapped unprocessed postitions
             types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
             pos = self.pos_pro
-            name = '/traj_processed_unwrapped'
+            name = '/traj_processed_unwrapped.xyz'
         if type == 3:
             ## wrapped processed postitions
             types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
             pos = self.pos_pro % self.L
-            name = '/traj_processed_wrapped'
+            name = '/traj_processed_wrapped.xyz'
 
         if self.verbose is True:
             print(f'prepare for writing {name} started on rank: {self.rank}')
@@ -779,7 +779,7 @@ class Prot_Hop:
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
             configs[i] = ase.Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
-        ase.io.write(os.path.normpath(self.folder+name), configs, format='extxyz', parallel=False)
+        ase.io.write(os.path.normpath(self.folder+name), configs, format='xyz', parallel=False)
 
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
@@ -898,8 +898,8 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
-# Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=False, verbose=True)
-# Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=False, xyz_out=True, verbose=True)
-Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
+Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=True, verbose=True)
+Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
+Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=True, verbose=True)
 
 # Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
