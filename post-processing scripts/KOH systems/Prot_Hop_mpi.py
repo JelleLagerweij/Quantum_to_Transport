@@ -507,7 +507,7 @@ class Prot_Hop:
         # First rescale all RDFs accordingly also prepaire for averaging using mpi.sum
         self.r_cent = (self.r[:-1] + self.r[1:])/2  # central point of rdf bins
         rdf_sample_counter_all = self.comm.allreduce(self.rdf_sample_counter, op=MPI.SUM)
-        rescale_geometry = (4*np.pi*self.r_cent**2)*(self.r[1] - self.r[0])  # 4*pi*r*dr
+        rescale_geometry = (4*np.pi*self.r_cent**2)*(self.r[1] - self.r[0])  # 4*pi*r^2*dr
         rescale_counters = (self.L**3)/(rdf_sample_counter_all)
         rescale = rescale_counters/rescale_geometry
         
