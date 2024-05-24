@@ -445,41 +445,7 @@ class Prot_Hop:
                 r_max = self.L/2  # np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
 
             self.f_rdf_sample_counter = 0
-            # set basic properties
-            self.f_r = np.histogram(self.d_H2OH2O, bins=nb, range=(r_min, r_max))[1] # array with outer edges
             
-            # Standard rdf pairs
-            self.f_rdf_H2OH2O = np.zeros(self.f_r.size, dtype=float)
-            self.f_rdf_OHH2O = np.zeros_like(self.f_rdf_H2OH2O)
-            self.f_rdf_KOH = np.zeros_like(self.f_rdf_H2OH2O)
-            self.f_rdf_KH2O = np.zeros_like(self.f_rdf_H2OH2O)
-            if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
-                self.f_rdf_OHOH = np.zeros_like(self.f_rdf_H2OH2O)
-                self.f_rdf_KK = np.zeros_like(self.f_rdf_H2OH2O)
-            if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
-                self.f_rdf_HOH = np.zeros_like(self.f_rdf_H2OH2O)
-                self.f_rdf_HH2O = np.zeros_like(self.f_rdf_H2OH2O)
-                self.f_rdf_HK = np.zeros_like(self.f_rdf_H2OH2O)
-                self.f_rdf_HH = np.zeros_like(self.f_rdf_H2OH2O)
-                self.f_rdf_KO_all = np.zeros_like(self.f_rdf_H2OH2O)
-                self.f_rdf_OO_all = np.zeros_like(self.f_rdf_H2OH2O)
-
-        # When i and j are of the same species with N particles
-        # every iteration F_rdf += sum_j=0->N[ sum_i=j+1->N  ( vec_F_j dot vec_r_ij * (1/r_ij^3) * Heaviside(r - r_ij) ) ]
-        # Need to calculate after all iterations are done and stiching together
-        # F_rdf *= L^3/(2*pi*kB*T*N^2)
-    
-        # When i and j are of different species N_1 and N_2
-        # every iteration F_rdf+= sum_j=0->N_1 [ sum_j=0->N_2 ( vec_F_j dot vec_r_ij * (1/r_ij^3) * Heaviside(r - r_ij) )  ]
-        # Need to calculate after all iterations are done and stiching together
-        # F_rdf *= L^3/(2*pi*kB*T*N_1 * N_2)
-        
-        # Test with f_rdf_KK as test array
-        F_KK = self.F_K[n, self.idx_KK[0], :]  # make array same size as d_KK by repeating using idx_KK array 
-        self.r_rdf_KK += np.einsum('ij,ij->i', self.F_K[n, self.idx_KK[0], :], self.r_KK)/(np.power(self.d_KK, 3))*np.where(r < self.d_KK, 1, 0)  # computes vec_F_j dot vec_r_ij * 1/r_ij^3
-        # Ideas for later
-        r_H2OH2O = self.r_OO[((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))), :]
-        F_H2O = self.force[n, ]
         
     def stitching_together_all(self):
         # prepair gethering on all cores 1) All OH- stuff
