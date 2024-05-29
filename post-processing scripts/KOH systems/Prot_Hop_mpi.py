@@ -2,6 +2,7 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 import freud
+import scipy.constants as co
 # from py4vasp import Calculation
 from mpi4py import MPI
 import time
@@ -10,11 +11,12 @@ import h5py
 import ase
 import sys
 from ase import io
+from typing import Tuple
 
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, T_ave=325, cheap=True, verbose=False, xyz_out=False, serial_check=False):
+    def __init__(self, folder, cheap=True, verbose=False, xyz_out=False, serial_check=False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -26,7 +28,6 @@ class Prot_Hop:
 
         Args:
             folder (string): path to hdf5 otput file
-            T_ave (float/int, optional): The set simulation temperature in K. Defaults to 325.
         """
         self.tstart = time.time()
         self.species = ['H', 'O', 'K']
@@ -314,7 +315,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=10): 
+    def loop_timesteps_all(self, n_samples=100): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -326,6 +327,11 @@ class Prot_Hop:
         self.pos_H = self.pos[:, self.H_i, :]
         self.pos_O = self.pos[:, self.O_i, :]
         self.pos_K = self.pos[:, self.K_i, :]
+
+        
+        self.force_H = self.force[:, self.H_i, :]
+        self.force_O = self.force[:, self.O_i, :]
+        self.force_K = self.force[:, self.K_i, :]
 
         # Create per species-species interactions indexing arrays
         self.idx_KK = np.triu_indices(self.N_K, k=1)
@@ -345,22 +351,46 @@ class Prot_Hop:
             
             self.recognize_molecules_all(n)
             if n % n_samples == 0:
+                # Create index array for Oxygen differencing
+                H2OH2O = ((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n])))
+                OHH2O = (((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))) | (((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))))  # ((a and b) or (b and a)) conditional
+                KOH = np.isin(self.idx_KO[1], self.OH_i[n])
+                KH2O = np.isin(self.idx_KO[1], self.H2O_i[n])
+                
                 # Calculate all other distances for RDF's and such when needed
                 self.r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
-                d_OO = np.sqrt(np.sum(self.r_OO**2, axis=1))
-                self.d_H2OH2O = d_OO[((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n])))]
-                self.d_OHH2O = d_OO[(((np.isin(self.idx_OO[0], self.H2O_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))) |
-                                    (((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.H2O_i[n]))))]  # ((a and b) or (b and a)) conditional
+                self.d_OO = np.sqrt(np.sum(self.r_OO**2, axis=1))
+                self.F_OO = self.force_O[n, self.idx_OO[1], :] - self.force_O[n, self.idx_OO[0], :]
+
+                self.r_H2OH2O = self.r_OO[H2OH2O]
+                self.d_H2OH2O = self.d_OO[H2OH2O]
+                self.F_H2OH2O = self.F_OO[H2OH2O]
+
+                self.r_OHH2O = self.r_OO[OHH2O]
+                self.d_OHH2O = self.d_OO[OHH2O]
+                self.F_OHH2O = self.F_OO[OHH2O]
                 
                 r_KO = (self.pos_O[n, self.idx_KO[1], :] - self.pos_K[n, self.idx_KO[0], :] + self.L/2) % self.L - self.L/2
                 d_KO = np.sqrt(np.sum(r_KO**2, axis=1))
-                self.d_KOH = d_KO[np.isin(self.idx_KO[1], self.OH_i[n])]  # selecting only OH from array
-                self.d_KH2O = d_KO[np.isin(self.idx_KO[1], self.H2O_i[n])]  # selecting only OH from array
+                F_KO = self.force_O[n, self.idx_KO[1], :] - self.force_K[n, self.idx_KO[0], :]
+
+                self.r_KOH = r_KO[KOH]  # selecting only OH from array
+                self.d_KOH = d_KO[KOH]  
+                self.F_KOH = F_KO[KOH]
+                
+                self.r_KH2O = r_KO[KH2O]  # selecting only H2O from array
+                self.d_KH2O = d_KO[KH2O]
+                self.F_KH2O = F_KO[KH2O]
 
                 if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
-                    self.d_OHOH = d_OO[((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))]
+                    OHOH = ((np.isin(self.idx_OO[0], self.OH_i[n])) & (np.isin(self.idx_OO[1], self.OH_i[n])))
+                    self.r_OHOH = self.r_OO[OHOH]
+                    self.d_OHOH = self.d_OO[OHOH]
+                    self.F_OHOH = self.F_OO[OHOH]
+                    
                     self.r_KK = (self.pos_K[n, self.idx_KK[1], :] - self.pos_K[n, self.idx_KK[0], :] + self.L/2) % self.L - self.L/2
                     self.d_KK = np.sqrt(np.sum(self.r_KK**2, axis=1))
+                    self.F_KK = self.force_K[n, self.idx_KK[1], :] -  self.force_K[n, self.idx_KK[0], :]
 
                 if self.cheap == False:  # Exclude yes usefull interactions especially the H-H interactions take long
                     self.d_HOH = self.d_HO[np.isin(self.idx_HO[1], self.OH_i[n])]
@@ -373,17 +403,17 @@ class Prot_Hop:
                     self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
                     
                     self.d_KO_all = d_KO
-                    self.d_OO_all = d_OO
+                    self.d_OO_all = self.d_OO
 
                 # Now compute RDF results
                 self.rdf_compute_all(n)
-                # self.rdf_force_compute_all(n)  # enter the force rdf
-            
+                self.rdf_force_compute_all(n)            
+
 
         if self.rank == 0 and self.verbose is True:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=128, r_max=None, force_RDF=False):
+    def rdf_compute_all(self, n, nb=48, r_max=None):
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
@@ -391,7 +421,6 @@ class Prot_Hop:
             if r_max == None:
                 r_max = self.L/2  # np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
 
-            self.rdf_sample_counter = 0
             # set basic properties
             self.r = np.histogram(self.d_H2OH2O, bins=nb + 1, range=(r_min, r_max))[1] # array with outer edges
             
@@ -428,25 +457,112 @@ class Prot_Hop:
                 self.rdf_HH += np.histogram(self.d_HK, bins=self.r)[0]
                 self.rdf_KO_all += np.histogram(self.d_KO_all, bins=self.r)[0]
                 self.rdf_OO_all += np.histogram(self.d_OO_all, bins=self.r)[0]
-        
-        self.rdf_sample_counter += 1
 
-    def rdf_force_compute_all(self, n, nb=256, r_max=None, force_RDF=False):
+    def rdf_force_compute_all(self, n, nb=1024, r_max=None):
         # RDF startup scheme
         if n == 0:
-            # Split up the forces when needed
-            self.F_H = self.force[:, self.H_i, :]
-            self.F_O = self.force[:, self.O_i, :]
-            self.F_K = self.force[:, self.K_i, :]
+            self.rdf_sample_counter = 0
             
             # set standard maximum rdf value
-            r_min = 1
             if r_max == None:
-                r_max = self.L/2  # np.sqrt(3*self.L**2/4)  # set to default half box diagonal distance
-
-            self.f_rdf_sample_counter = 0
+                r_max = self.L/2  # set to default half box diagonal distance
+  
+            # set basic properties
+            self.rdf_F_bins = np.arange(0, r_max, (r_max)/nb) # array with outer edges
             
+            # Standard rdf pairs
+            self.store_F_H2OH2O = []  # linked list, we will append and later reallocate to np.array
+            self.rdf_F_H2OH2O = np.zeros(self.rdf_F_bins.shape[0], dtype=np.float64)
+            self.store_F_OHH2O = []
+            self.rdf_F_OHH2O = np.zeros_like(self.rdf_F_H2OH2O)  # copy sizing from H2OH2O array
+            self.store_F_KOH = []
+            self.rdf_F_KOH = np.zeros_like(self.rdf_F_H2OH2O)
+            self.store_F_KH2O = []
+            self.rdf_F_KH2O = np.zeros_like(self.rdf_F_H2OH2O)
+            if self.N_K > 1:  # only ion-ion self interactions if more than 1 is there
+                self.store_F_OHOH = []
+                self.rdf_F_OHOH = np.zeros_like(self.rdf_F_H2OH2O)
+                self.store_F_KK = []
+                self.rdf_F_KK = np.zeros_like(self.rdf_F_H2OH2O)
+            # if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
+            #     self.store_F_HOH = []
+            #     self.rdf_F_HOH = np.zeros_like(self.rdf_F_H2OH2O)
+            #     self.store_F_HH2O = []
+            #     self.rdf_F_OHOH = np.zeros_like(self.rdf_F_H2OH2O)
+            #     self.store_F_HK = []
+            #     self.rdf_F_HK = np.zeros_like(self.rdf_F_H2OH2O)
+            #     self.store_F_HH = []
+            #     self.rdf_F_HH = np.zeros_like(self.rdf_F_H2OH2O)
+            #     self.store_F_KO_all = []
+            #     self.rdf_F_KO = np.zeros_like(self.rdf_F_H2OH2O)
+            #     self.store_F_OO_all = []
+            #     self.rdf_F_OO = np.zeros_like(self.rdf_F_H2OH2O)
         
+        this_F_rdf = self.rdf_force_state_all(self.r_H2OH2O, self.d_H2OH2O, self.F_H2OH2O)
+        self.store_F_H2OH2O.append(this_F_rdf)
+        self.rdf_F_H2OH2O += this_F_rdf
+        
+        this_F_rdf = self.rdf_force_state_all(self.r_OHH2O, self.d_OHH2O, self.F_OHH2O)
+        self.store_F_OHH2O.append(this_F_rdf)
+        self.rdf_F_OHH2O += this_F_rdf
+        
+        this_F_rdf = self.rdf_force_state_all(self.r_KOH, self.d_KOH, self.F_KOH)
+        self.store_F_KOH.append(this_F_rdf)
+        self.rdf_F_KOH += this_F_rdf
+        
+        this_F_rdf = self.rdf_force_state_all(self.r_KH2O, self.d_KH2O, self.F_KH2O)
+        self.store_F_KH2O.append(this_F_rdf)
+        self.rdf_F_KH2O += this_F_rdf
+        
+        if self.N_K > 1:
+            this_F_rdf = self.rdf_force_state_all(self.r_OHOH, self.d_OHOH, self.F_OHOH)
+            self.store_F_OHOH.append(this_F_rdf)
+            self.rdf_F_OHOH += this_F_rdf
+            
+            this_F_rdf = self.rdf_force_state_all(self.r_KK, self.d_KK, self.F_KK)
+            self.store_F_KK.append(this_F_rdf)
+            self.rdf_F_KK += this_F_rdf
+        
+        self.rdf_sample_counter += 1  
+
+    def rdf_force_state_all(self, r:np.ndarray, d:np.ndarray, F:np.ndarray):
+        storage_array=np.zeros(np.size(self.rdf_F_bins), dtype=np.float64)
+
+        F_dot_r = np.sum(F*r, axis=1)/d  # F dot rxyz/r (strength of F in the direction of r)
+        dp = F_dot_r/d**2  # (F dot r_vec)/r_rad^3
+        dp[(r[:, 0]>self.L/2)+(r[:, 1]>self.L/2)+(r[:, 2]>self.L/2)]=0  # filter
+        
+        # the next part is from revelsmd package, adjusted for my code
+        digtized_array = np.digitize(d, self.rdf_F_bins)-1
+        dp[digtized_array==np.size(self.rdf_F_bins)-1] = 0
+        
+        storage_array[(np.size(self.rdf_F_bins)-1)]= np.sum(dp[(digtized_array==np.size(self.rdf_F_bins)-1)]) #conduct heaviside for our first bin
+        for l in range(np.size(self.rdf_F_bins)-2,-1,-1):
+            storage_array[l]= np.sum(dp[(digtized_array==l)])#conduct subsequent heavisides with a rolling sum
+        return storage_array
+    
+    def rdf_force_rescale_all(self, store:list, rdf:np.ndarray, interactions:int):
+        rescale_geo =8*np.pi*(co.k/co.eV)*self.T_set  # USE AVERAGE TEMPERATURE LATER
+        prefactor = self.L**3/(interactions)
+        store = np.array(store)*prefactor/rescale_geo
+        store_zero = np.array(np.cumsum(store, axis=1))[:,:-1]
+        store_inf = np.array(1-np.cumsum(store[:,::-1], axis=1)[:,::-1][:,1:])
+        store_delta = store_inf - store_zero
+        
+        # total parts
+        rescale_geo *= len(store)
+        rdf *= prefactor/rescale_geo
+        rdf_zero = np.array(np.cumsum(rdf)[:-1])
+        rdf_inf = np.array(1-np.cumsum(rdf[::-1])[::-1][1:])
+        rdf_delta = rdf_inf - rdf_zero
+
+        # varience part
+        var_del=np.mean((store_delta-rdf_delta)**2,axis=0)
+        cov_inf=np.mean((store_delta-rdf_delta)*(store_inf-rdf_inf),axis=0)
+        weights = cov_inf/var_del
+        rdf = np.mean(store_inf*(1-weights)+(store_zero*weights), axis=0)
+        return np.array([rdf, rdf_zero, rdf_inf])
+            
     def stitching_together_all(self):
         # prepair gethering on all cores 1) All OH- stuff
         self.OH_i = self.comm.gather(self.OH_i, root=0)
@@ -491,9 +607,9 @@ class Prot_Hop:
             self.rdf_HH *= rescale/(self.N_H*(self.N_H - 1)*0.5)
             self.rdf_KO_all *= rescale/(self.N_K*self.N_O)
             self.rdf_OO_all *= rescale/(self.N_O*(self.N_O - 1)*0.5)
-        
+
         # Then communicate these to main core.
-        self.rdf_H2OH2O = self.comm.reduce(self.rdf_H2OH2O, op=MPI.SUM)
+        self.rdf_H2OH2O = self.comm.reduce(self.rdf_H2OH2O, op=MPI.SUM, root=0)
         self.rdf_OHH2O = self.comm.reduce(self.rdf_OHH2O, op=MPI.SUM, root=0)       
         self.rdf_KOH = self.comm.reduce(self.rdf_KOH, op=MPI.SUM, root=0)
         self.rdf_KH2O = self.comm.reduce(self.rdf_KH2O, op=MPI.SUM, root=0)
@@ -510,6 +626,26 @@ class Prot_Hop:
             self.rdf_KO_all = self.comm.reduce(self.rdf_KO_all, op=MPI.SUM, root=0)
             self.rdf_OO_all = self.comm.reduce(self.rdf_OO_all, op=MPI.SUM, root=0)
 
+        # The Force RDF
+        # Rescale
+        rdf_F_H2OH2O = self.rdf_force_rescale_all(self.store_F_H2OH2O, self.rdf_F_H2OH2O, self.N_H2O*(self.N_H2O-1)/2)/self.size
+        rdf_F_OHH2O = self.rdf_force_rescale_all(self.store_F_OHH2O, self.rdf_F_OHH2O, self.N_H2O*self.N_OH)/self.size
+        rdf_F_KOH = self.rdf_force_rescale_all(self.store_F_KOH, self.rdf_F_KOH, self.N_K*self.N_OH)/self.size
+        rdf_F_KH2O = self.rdf_force_rescale_all(self.store_F_KH2O, self.rdf_F_KH2O, self.N_K*self.N_H2O)/self.size
+        if self.N_K > 1:
+            rdf_F_OHOH = self.rdf_force_rescale_all(self.store_F_OHOH, self.rdf_F_OHOH, self.N_OH*(self.N_OH-1)/2)/self.size
+            rdf_F_KK = self.rdf_force_rescale_all(self.store_F_KK, self.rdf_F_KK, self.N_K*(self.N_K-1)/2)/self.size
+        # recenter bins
+        self.rdf_F_bins = (self.rdf_F_bins[1:] + self.rdf_F_bins[:-1])/2
+        
+        # Then communicate these to main core.
+        self.rdf_F_H2OH2O = self.comm.reduce(rdf_F_H2OH2O, op=MPI.SUM, root=0)
+        self.rdf_F_OHH2O = self.comm.reduce(rdf_F_OHH2O, op=MPI.SUM, root=0)
+        self.rdf_F_KOH = self.comm.reduce(rdf_F_KOH, op=MPI.SUM, root=0)
+        self.rdf_F_KH2O = self.comm.reduce(rdf_F_KH2O, op=MPI.SUM, root=0)
+        if self.N_K > 1:
+            self.rdf_F_OHOH = self.comm.reduce(rdf_F_OHOH, op=MPI.SUM, root=0)
+            self.rdf_F_KK = self.comm.reduce(rdf_F_KK, op=MPI.SUM, root=0)
         # Stich together correctly on main cores
         if self.rank == 0:
             self.stitching_together_main()
@@ -686,6 +822,7 @@ class Prot_Hop:
         df.create_dataset("rdf/g_H2OH2O(r)", data=self.rdf_H2OH2O)
         df.create_dataset("rdf/g_OHH2O(r)", data=self.rdf_OHH2O)
         df.create_dataset("rdf/g_KH2O(r)", data=self.rdf_KH2O)
+        df.create_dataset("rdf/g_KOH(r)", data=self.rdf_KOH)
         
         if self.N_K > 1:
             df.create_dataset("rdf/g_OHOH(r)", data=self.rdf_OHOH)
@@ -697,6 +834,16 @@ class Prot_Hop:
             df.create_dataset("rdf/g_HH(r)", data=self.rdf_HH)
             df.create_dataset("rdf/g_KO(r)", data=self.rdf_KO_all)
             df.create_dataset("rdf/g_OO(r)", data=self.rdf_OO_all)
+        
+        # force rdfs
+        df.create_dataset("rdf_F/r", data=self.rdf_F_bins)
+        df.create_dataset("rdf_F/g_H2OH2O(r)", data=self.rdf_F_H2OH2O)
+        df.create_dataset("rdf_F/g_OHH2O(r)", data=self.rdf_F_OHH2O)
+        df.create_dataset("rdf_F/g_KOH(r)", data=self.rdf_F_KOH)
+        df.create_dataset("rdf_F/g_KH2O(r)", data=self.rdf_F_KH2O)
+        if self.N_K > 1:
+            df.create_dataset("rdf_F/g_OHOH(r)", data=self.rdf_F_OHOH)
+            df.create_dataset("rdf_F/g_KK(r)", data=self.rdf_F_KK)
         
         # msds
         df.create_dataset("msd/OH", data=self.msd_OH)
@@ -863,8 +1010,8 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
-# Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=True, verbose=True)
+Traj1 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=False, verbose=True)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
-Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=True, verbose=True)
+# Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
 # Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)

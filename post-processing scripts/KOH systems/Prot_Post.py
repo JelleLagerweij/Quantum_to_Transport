@@ -42,6 +42,7 @@ class Prot_Post:
         self.rdf_H2OH2O = input["rdf/g_H2OH2O(r)"][()]
         self.rdf_OHH2O = input["rdf/g_OHH2O(r)"][()]
         self.rdf_KH2O = input["rdf/g_KH2O(r)"][()]
+        self.rdf_KOH = input["rdf/g_KOH(r)"][()]
         
         if self. N_K > 1:
             self.rdf_OHOH = input["rdf/g_OHOH(r)"][()]        
@@ -58,6 +59,17 @@ class Prot_Post:
             self.rdf_HH = input["rdf/g_HH(r)"][()]
             self.rdf_KO_all = input["rdf/g_KO(r)"][()]
             self.rdf_OO_all = input["rdf/g_OO(r)"][()]
+        
+        # retrieve the force rdfs
+        self.rdf_F_r = input["rdf_F/r"][()]
+        self.rdf_F_H2OH2O = input["rdf_F/g_H2OH2O(r)"][()]
+        self.rdf_F_OHH2O = input["rdf_F/g_OHH2O(r)"][()]
+        self.rdf_F_KOH = input["rdf_F/g_KOH(r)"][()]
+        self.rdf_F_KH2O = input["rdf_F/g_KH2O(r)"][()]
+        if self. N_K > 1:
+            self.rdf_F_OHOH = input["rdf_F/g_OHOH(r)"][()]        
+            self.rdf_F_KK = input["rdf_F/g_KK(r)"][()]
+        
         input.close()
     
     def diffusion(self, specie, t_start=1000, steps=2000, m=False, plotting=False):
