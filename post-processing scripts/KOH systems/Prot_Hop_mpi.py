@@ -410,12 +410,13 @@ class Prot_Hop:
                     self.r_HH2O = r_HO[HH2O]
                     self.d_HH2O = self.d_HO[HH2O]
                     self.F_HH2O = F_HO[HH2O]
+
+                    self.r_HH = (self.pos_H[n, self.idx_HH[1], :] - self.pos_H[n, self.idx_HH[0], :] + self.L/2) % self.L - self.L/2
+                    self.d_HH = np.sqrt(np.sum(self.r_HH**2, axis=1))
+                    self.F_HH = self.force_H[n, self.idx_HH[1], :] -  self.force_H[n, self.idx_HH[0], :]
                     
-                    r_HH = (self.pos_H[n, self.idx_HH[1], :] - self.pos_H[n, self.idx_HH[0], :] + self.L/2) % self.L - self.L/2
-                    self.d_HH = np.sqrt(np.sum(r_HH**2, axis=1))
-                    
-                    r_HK = (self.pos_K[n, self.idx_HK[1], :] - self.pos_H[n, self.idx_HK[0], :] + self.L/2) % self.L - self.L/2
-                    self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
+                    # r_HK = (self.pos_K[n, self.idx_HK[1], :] - self.pos_H[n, self.idx_HK[0], :] + self.L/2) % self.L - self.L/2
+                    # self.d_HK = np.sqrt(np.sum(r_HK**2, axis=1))
                     
                     self.d_KO_all = d_KO
                     self.d_OO_all = self.d_OO
@@ -449,7 +450,7 @@ class Prot_Hop:
             if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
                 self.rdf_HOH = np.zeros_like(self.rdf_H2OH2O)
                 self.rdf_HH2O = np.zeros_like(self.rdf_H2OH2O)
-                self.rdf_HK = np.zeros_like(self.rdf_H2OH2O)
+                # self.rdf_HK = np.zeros_like(self.rdf_H2OH2O)
                 self.rdf_HH = np.zeros_like(self.rdf_H2OH2O)
                 self.rdf_KO_all = np.zeros_like(self.rdf_H2OH2O)
                 self.rdf_OO_all = np.zeros_like(self.rdf_H2OH2O)
@@ -467,8 +468,8 @@ class Prot_Hop:
         if self.cheap is False: # Also execute Hydrogen interaction distances (long lists)
                 self.rdf_HOH += np.histogram(self.d_HOH, bins=self.r)[0]
                 self.rdf_HH2O += np.histogram(self.d_HH2O, bins=self.r)[0]
-                self.rdf_HK += np.histogram(self.d_HK, bins=self.r)[0]
-                self.rdf_HH += np.histogram(self.d_HK, bins=self.r)[0]
+                # self.rdf_HK += np.histogram(self.d_HK, bins=self.r)[0]
+                self.rdf_HH += np.histogram(self.d_HH, bins=self.r)[0]
                 self.rdf_KO_all += np.histogram(self.d_KO_all, bins=self.r)[0]
                 self.rdf_OO_all += np.histogram(self.d_OO_all, bins=self.r)[0]
 
@@ -486,7 +487,7 @@ class Prot_Hop:
             
             # Standard rdf pairs
             self.store_F_H2OH2O = []  # linked list, we will append and later reallocate to np.array
-            self.rdf_F_H2OH2O = np.zeros(self.rdf_F_bins.shape[0], dtype=np.longdouble)  # test 128 bit floats for accuracy
+            self.rdf_F_H2OH2O = np.zeros(self.rdf_F_bins.shape[0], dtype=np.float64)  # test 128 bit floats for accuracy
             self.store_F_OHH2O = []
             self.rdf_F_OHH2O = np.zeros_like(self.rdf_F_H2OH2O)  # copy sizing from H2OH2O array
             self.store_F_KOH = []
@@ -505,8 +506,8 @@ class Prot_Hop:
                 self.rdf_F_HH2O = np.zeros_like(self.rdf_F_H2OH2O)
             #     self.store_F_HK = []
             #     self.rdf_F_HK = np.zeros_like(self.rdf_F_H2OH2O)
-            #     self.store_F_HH = []
-            #     self.rdf_F_HH = np.zeros_like(self.rdf_F_H2OH2O)
+                self.store_F_HH = []
+                self.rdf_F_HH = np.zeros_like(self.rdf_F_H2OH2O)
             #     self.store_F_KO_all = []
             #     self.rdf_F_KO = np.zeros_like(self.rdf_F_H2OH2O)
             #     self.store_F_OO_all = []
@@ -545,11 +546,15 @@ class Prot_Hop:
             this_F_rdf = self.rdf_force_state_all(self.r_HH2O, self.d_HH2O, self.F_HH2O)
             self.store_F_HH2O.append(this_F_rdf)
             self.rdf_F_HH2O += this_F_rdf
+            
+            this_F_rdf = self.rdf_force_state_all(self.r_HH, self.d_HH, self.F_HH)
+            self.store_F_HH.append(this_F_rdf)
+            self.rdf_F_HH += this_F_rdf
         
         self.rdf_sample_counter += 1  
 
     def rdf_force_state_all(self, r:np.ndarray, d:np.ndarray, F:np.ndarray):
-        storage_array=np.zeros(np.size(self.rdf_F_bins), dtype=np.longdouble)
+        storage_array=np.zeros(np.size(self.rdf_F_bins), dtype=np.float64)
 
         F_dot_r = np.sum(F*r, axis=1)/d  # F dot rxyz/r (strength of F in the direction of r)
         dp = F_dot_r/d**2  # (F dot r_vec)/r_rad^3
@@ -626,7 +631,7 @@ class Prot_Hop:
         if self.cheap is False:
             self.rdf_HOH *= rescale/(self.N_H*self.N_OH)
             self.rdf_HH2O *= rescale/(self.N_H*self.N_H2O)
-            self.rdf_HK *= rescale/(self.N_H*self.N_K)
+            # self.rdf_HK *= rescale/(self.N_H*self.N_K)
             self.rdf_HH *= rescale/(self.N_H*(self.N_H - 1)*0.5)
             self.rdf_KO_all *= rescale/(self.N_K*self.N_O)
             self.rdf_OO_all *= rescale/(self.N_O*(self.N_O - 1)*0.5)
@@ -644,7 +649,7 @@ class Prot_Hop:
         if self.cheap is False:
             self.rdf_HOH = self.comm.reduce(self.rdf_HOH, op=MPI.SUM, root=0)
             self.rdf_HH2O = self.comm.reduce(self.rdf_HH2O, op=MPI.SUM, root=0)
-            self.rdf_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
+            # self.rdf_HK = self.comm.reduce(self.rdf_HK, op=MPI.SUM, root=0)
             self.rdf_HH = self.comm.reduce(self.rdf_HH, op=MPI.SUM, root=0)
             self.rdf_KO_all = self.comm.reduce(self.rdf_KO_all, op=MPI.SUM, root=0)
             self.rdf_OO_all = self.comm.reduce(self.rdf_OO_all, op=MPI.SUM, root=0)
@@ -661,6 +666,7 @@ class Prot_Hop:
         if self.cheap is False:
             rdf_F_HOH = self.rdf_force_rescale_all(self.store_F_HOH, self.rdf_F_HOH, self.N_H*self.N_OH)/self.size
             rdf_F_HH2O = self.rdf_force_rescale_all(self.store_F_HH2O, self.rdf_F_HH2O, self.N_H*self.N_H2O)/self.size
+            rdf_F_HH = self.rdf_force_rescale_all(self.store_F_HH, self.rdf_F_HH, self.N_H*(self.N_H-1)/2)/self.size
         # recenter bins
         self.rdf_F_bins = (self.rdf_F_bins[1:] + self.rdf_F_bins[:-1])/2
         
@@ -675,6 +681,7 @@ class Prot_Hop:
         if self.cheap is False:
             self.rdf_F_HOH = self.comm.reduce(rdf_F_HOH, op=MPI.SUM, root=0)
             self.rdf_F_HH2O = self.comm.reduce(rdf_F_HH2O, op=MPI.SUM, root=0)
+            self.rdf_F_HH = self.comm.reduce(rdf_F_HH, op=MPI.SUM, root=0)
         # Stich together correctly on main cores
         if self.rank == 0:
             self.stitching_together_main()
@@ -815,7 +822,7 @@ class Prot_Hop:
             path = os.path.normpath(self.folder + r"/single_core/")
         else:
             path = self.folder
-        self.save_numpy_files_main(path)
+        # self.save_numpy_files_main(path)
         
         # create the output.h5 file always on main core
         if self.rank == 0:
@@ -844,7 +851,7 @@ class Prot_Hop:
 
     def create_dataframe_main(self, path):
         # create large dataframe with output
-        df = h5py.File(self.path.normpath(path + '/output.h5'), "w")
+        df = h5py.File(os.path.normpath(path + '/output.h5'), "w")
         
         # rdfs
         df.create_dataset("rdf/r", data=self.r_cent)
@@ -860,7 +867,7 @@ class Prot_Hop:
         if self.cheap is False:
             df.create_dataset("rdf/g_HOH(r)", data=self.rdf_HOH)
             df.create_dataset("rdf/g_HH2O(r)", data=self.rdf_HH2O)
-            df.create_dataset("rdf/g_HK(r)", data=self.rdf_HK)
+            # df.create_dataset("rdf/g_HK(r)", data=self.rdf_HK)
             df.create_dataset("rdf/g_HH(r)", data=self.rdf_HH)
             df.create_dataset("rdf/g_KO(r)", data=self.rdf_KO_all)
             df.create_dataset("rdf/g_OO(r)", data=self.rdf_OO_all)
@@ -876,7 +883,8 @@ class Prot_Hop:
             df.create_dataset("rdf_F/g_KK(r)", data=self.rdf_F_KK)
         if self.cheap is False:
             df.create_dataset("rdf_F/g_HOH(r)", data=self.rdf_F_HOH)
-            df.create_dataset("rdf_F/g_HH2O(r)", data=self.rdf_F_HH2O)           
+            df.create_dataset("rdf_F/g_HH2O(r)", data=self.rdf_F_HH2O)     
+            df.create_dataset("rdf_F/g_HH(r)", data=self.rdf_F_HH)      
         
         # msds
         df.create_dataset("msd/OH", data=self.msd_OH)
@@ -936,10 +944,10 @@ class Prot_Hop:
             # print("os.mkdir threw error, but continued with except:", error)
             error = 1
         if self.cheap is False:
-            np.savez(os.path.normpath(path + r"/output.npz"),
+            np.savez(os.path.normpath(path + "/output.npz"),
                     OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
-                    r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O,
-                    rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_all, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
+                    r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)
+                    # rdf_HOH=self.rdf_HOH, rdf_HK=self.rdf_HK, rdf_HH=self.rdf_HH, rdf_KO_all=self.rdf_KO_all, rdf_OO_all=self.rdf_OO_all)  # sensing the rdf
         else:
             np.savez(os.path.normpath(path + r"/output.npz"),
                     OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-

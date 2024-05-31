@@ -2,14 +2,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import h5py
+from typing import Tuple
 
 class Prot_Post:
     def __init__(self, folder):
-        self.folder = folder
+        self.folder = os.path.normpath(folder)
+        if os.name == 'posix':
+            # Convert Windows path to WSL path
+            self.folder = os.path.normpath('/mnt/c'+self.folder)
         self.load_properties()
 
     def load_properties(self):
-        input = h5py.File(os.path.normpath(self.folder+'output.h5'), 'r')
+        input = h5py.File(os.path.normpath(self.folder+'/output.h5'), 'r')
 
         # Retrieving the msd properties
         self.msd_OH = input["msd/OH"][()]
@@ -56,7 +60,7 @@ class Prot_Post:
         
         if self.cheap is False:
             self.rdf_HH2O = input["rdf/g_HH2O(r)"][()]
-            self.rdf_HK = input["rdf/g_HK(r)"][()]
+            # self.rdf_HK = input["rdf/g_HK(r)"][()]
             self.rdf_HH = input["rdf/g_HH(r)"][()]
             self.rdf_KO_all = input["rdf/g_KO(r)"][()]
             self.rdf_OO_all = input["rdf/g_OO(r)"][()]
@@ -73,6 +77,7 @@ class Prot_Post:
         if self.cheap is False:
             self.rdf_F_HOH = input["rdf_F/g_HOH(r)"][()]
             self.rdf_F_HH2O = input["rdf_F/g_HH2O(r)"][()]
+            self.rdf_F_HH = input["rdf_F/g_HH(r)"][()]
         input.close()
     
     def diffusion(self, specie, t_start=1000, steps=2000, m=False, plotting=False):
@@ -144,6 +149,33 @@ class Prot_Post:
 
         fact = (1e-20)/(6)
         return D*fact
+    
+    def water_shape(self, force_rdf=True) -> Tuple[float, float]:
+        """Retrieve the shape of the average water molecule from the rdf
+
+        Args:
+            force_rdf (bool, optional): Switch between force rdf or traditional rdf. Defaults to True=force rdf.
+
+        Returns:
+            Tuple:
+            r_HO (float): average distance between oxygen and hydrogen in water molecule in Angstrom
+            angle (float): average angle HOH /_  in degrees
+        """
+        if force_rdf is True:
+            r_HO = self.rdf_F_r[self.rdf_F_HH2O[0, :].argmax()]
+            r_HH = self.rdf_F_r[self.rdf_F_HH[0, :].argmax()]
+        else:
+            r_HO = self.rdf_r[self.rdf_HH2O[0, :].argmax()]
+            r_HH = self.rdf_r[self.rdf_HH[0, :].argmax()]
+        # Calculate the cosine of the angle
+        cos_gamma = 1 - (r_HH**2) / (2 * r_HO**2)
+        
+        # Calculate the angle in radians
+        gamma_rad = np.arccos(cos_gamma)
+        
+        # Convert the angle to degrees
+        gamma_deg = np.degrees(gamma_rad)
+        return r_HO, gamma_deg
         
 
 # folder = r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/"
