@@ -55,6 +55,7 @@ class Prot_Post:
             self.cheap = True
         
         if self.cheap is False:
+            self.rdf_HH2O = input["rdf/g_HH2O(r)"][()]
             self.rdf_HK = input["rdf/g_HK(r)"][()]
             self.rdf_HH = input["rdf/g_HH(r)"][()]
             self.rdf_KO_all = input["rdf/g_KO(r)"][()]
@@ -69,7 +70,9 @@ class Prot_Post:
         if self. N_K > 1:
             self.rdf_F_OHOH = input["rdf_F/g_OHOH(r)"][()]        
             self.rdf_F_KK = input["rdf_F/g_KK(r)"][()]
-        
+        if self.cheap is False:
+            self.rdf_F_HOH = input["rdf_F/g_HOH(r)"][()]
+            self.rdf_F_HH2O = input["rdf_F/g_HH2O(r)"][()]
         input.close()
     
     def diffusion(self, specie, t_start=1000, steps=2000, m=False, plotting=False):
