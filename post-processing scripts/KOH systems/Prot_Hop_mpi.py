@@ -73,9 +73,18 @@ class Prot_Hop:
             folder (string): path to hdf5 otput file
         """
         self.folder = os.path.normpath(self.folder)
-        if os.name == 'posix':
+        if (os.name == 'posix') and ('WSL_DISTRO_NAME' in os.environ):
             # Convert Windows path to WSL path
             self.folder = os.path.normpath('/mnt/c'+self.folder)
+        elif (os.name == 'posix') and ('delftblue' in os.environ):
+            # Convert to fully relative paths
+            self.folder = os.getcwd()
+        elif (os.name == 'nt') and ('vlagerweij == os.getlogin()'):
+            # use standard windows file path
+            self.folder = self.folder
+        else:
+            print('no automatic filepath conversiona evailable use relative path')
+            self.folder = os.getcwd()
 
         # finds all vaspout*.h5 files in folder and orders them alphabetically
         subsimulations = sorted(glob.glob(os.path.normpath(self.folder + "/vaspout*.h5")))
