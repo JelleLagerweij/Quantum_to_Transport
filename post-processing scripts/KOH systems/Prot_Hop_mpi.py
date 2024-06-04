@@ -320,7 +320,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=100): 
+    def loop_timesteps_all(self, n_samples=250): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -620,7 +620,7 @@ class Prot_Hop:
         rescale_geometry = (4*np.pi*self.r_cent**2)*(self.r[1] - self.r[0])  # 4*pi*r^2*dr
         rescale_counters = (self.L**3)/(rdf_sample_counter_all)
         rescale = rescale_counters/rescale_geometry
-        
+        # TODO: Make sure to do Na*Na/2 (not Na*(Na-1)/2)
         self.rdf_H2OH2O *= rescale/(self.N_H2O*(self.N_H2O - 1)*0.5)  # rdf*L_box^3/(n_sample*n_interactions*geometry_rescale/n_cores)
         self.rdf_OHH2O *= rescale/(self.N_OH*self.N_H2O)
         self.rdf_KOH *= rescale/(self.N_OH*self.N_K)

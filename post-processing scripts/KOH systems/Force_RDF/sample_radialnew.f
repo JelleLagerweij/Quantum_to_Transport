@@ -19,7 +19,7 @@ Cccccccccccccccccccccccccccccccccccccccccccccccccc
 
       If(Ichoise.Eq.1) Then
          Do I=1,Maxx
-            Gg(I) = 0.0d0
+            Gg(I) = 0.0d0                                                                                                              C f64
          Enddo
 
          Ggt = 0.0d0
