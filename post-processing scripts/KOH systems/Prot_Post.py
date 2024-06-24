@@ -7,9 +7,18 @@ from typing import Tuple
 class Prot_Post:
     def __init__(self, folder):
         self.folder = os.path.normpath(folder)
-        if os.name == 'posix':
+        if (os.name == 'posix') and ('WSL_DISTRO_NAME' in os.environ):
             # Convert Windows path to WSL path
             self.folder = os.path.normpath('/mnt/c'+self.folder)
+        elif (os.name == 'posix') and ('delftblue' == os.environ['CMD_WLM_CLUSTER_NAME']):
+            # Convert to fully relative paths
+            self.folder = os.path.join(os.getcwd(), self.folder)
+        elif (os.name == 'nt') and ('vlagerweij == os.getlogin()'):
+            # use standard windows file path
+            self.folder = self.folder
+        else:
+            print('no automatic filepath conversiona evailable use relative path')
+            self.folder = os.getcwd()
         self.load_properties()
 
     def load_properties(self):

@@ -1,3 +1,4 @@
+#!python
 import numpy as np
 import glob
 import matplotlib.pyplot as plt
@@ -76,9 +77,9 @@ class Prot_Hop:
         if (os.name == 'posix') and ('WSL_DISTRO_NAME' in os.environ):
             # Convert Windows path to WSL path
             self.folder = os.path.normpath('/mnt/c'+self.folder)
-        elif (os.name == 'posix') and ('delftblue' in os.environ):
+        elif (os.name == 'posix') and ('delftblue' == os.environ['CMD_WLM_CLUSTER_NAME']):
             # Convert to fully relative paths
-            self.folder = os.getcwd()
+            self.folder = os.path.join(os.getcwd(), self.folder)
         elif (os.name == 'nt') and ('vlagerweij == os.getlogin()'):
             # use standard windows file path
             self.folder = self.folder
@@ -1064,9 +1065,9 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
-Traj1 = Prot_Hop("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False, verbose=True)
+# Traj1 = Prot_Hop("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False, verbose=True)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
-# Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
+Traj = Prot_Hop(r"../../testcase_compute_1ns", cheap=False, xyz_out=False, verbose=True)
 
