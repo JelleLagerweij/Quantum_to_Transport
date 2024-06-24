@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.constants as co
 import os
 import h5py
 from typing import Tuple
@@ -24,10 +25,17 @@ class Prot_Post:
     def load_properties(self):
         input = h5py.File(os.path.normpath(self.folder+'/output.h5'), 'r')
 
+        # System properties
+        self.L = input["system/Lbox"][()]
+        self.N_OH = input["system/N_OH"][()]
+        self.N_K = input["system/N_K"][()]
+        self.N_H2O = input["system/N_H2O"][()]
+        
         # Retrieving the msd properties
         self.msd_OH = input["msd/OH"][()]
         self.msd_H2O = input["msd/H2O"][()]
         self.msd_K = input["msd/K"][()]
+        self.msd_P = input["msd/P"][()]
         
         # retrieving the transient properties
         self.t = input["transient/time"][()]
@@ -89,11 +97,9 @@ class Prot_Post:
             self.rdf_F_HH = input["rdf_F/g_HH(r)"][()]
         input.close()
     
-    def diffusion(self, specie, t_start=1000, steps=2000, m=False, plotting=False):
+    def diffusion(self, specie, linear=False, t_start=500, steps=2000, m=False, plotting=False):
         # Settings for the margins and fit method.
         margin = 0.005  # cut away range at left and right side
-        Minc = 125  # minimum number of points included in the fit
-        Mmax = 250  # maximum number of points included in the fit
         er_max = 0.1  # maximum allowed error
         
         try:
@@ -103,15 +109,29 @@ class Prot_Post:
         
         # n = np.logspace(np.log10(t_start), np.log10(self.t[-1]), steps, dtype=int)
         # n = n[:np.where(n > self.t.shape)[0][0]]  # make very sure to not overflow time array
-        
-        # t = self.t[n]*1e-15
-        t = self.t
-        t = t[t_start:]
-        step = (t.shape[0] ) // steps
-        t = t[::step]*1e-15
-        
-        MSD_in = MSD_in[t_start:]
-        MSD_in = MSD_in[::step]
+        if linear is True:
+            # Linear Settings
+            # Settings for the margins and fit method.
+            Minc = 125  # minimum number of points included in the fit
+            Mmax = 250  # maximum number of points included in the fit
+
+            
+            t = self.t[t_start:]
+            step = (t.shape[0] ) // steps
+            t = t[::step]*1e-15
+            
+            MSD_in = MSD_in[t_start:]
+            MSD_in = MSD_in[::step]
+        else:
+            # Log spacing (like OCTP)
+            Minc = 8
+            Mmax = 20
+            steps = int(steps/20)
+            
+            n = np.logspace(np.log10(t_start), np.log10(self.t[-1]), steps, dtype=int)
+            n = n[:np.where(n > self.t.shape)[0][0]]  # make very sure to not overflow time array
+            t = self.t[n]*1e-15
+            MSD_in = MSD_in[n]
         
         t_log = np.log10(t)
         MSD_log_in = np.log10(np.abs(MSD_in))
@@ -119,8 +139,8 @@ class Prot_Post:
         jbest = 'failed'
         mbest = 0
 
-        for i in range(int(margin*len(t_log)), int((1-margin)*len(t_log))-Minc):
-            for j in range(Minc, min(Mmax, int((1-margin)*len(t_log))-Minc-i)):
+        for i in range(len(t_log)-Minc):
+            for j in range(Minc, len(t_log)-Minc-i):
                 if (t[i] != t[i+1]):
                     p, res, aa, aa1, aa3 = np.polyfit(t_log[i:i+j],
                                                     MSD_log_in[i:i+j], 1,
@@ -150,13 +170,94 @@ class Prot_Post:
             fit = D*t_fit + b
 
         if plotting is True:
-            plt.figure('Diffusion fitting')
+            plt.figure('Diffusion fitting' + specie)
+            plt.title(specie)
             plt.loglog(t, MSD_in, 'o', label='data')
             plt.loglog(t_fit, fit, '-.', label='fit')
             plt.grid()
             plt.legend()
 
         fact = (1e-20)/(6)
+        return D*fact
+    
+    def viscosity(self, linear=False, t_start=500, steps=2000, m=False, plotting=False):
+                # Settings for the margins and fit method.
+        margin = 0.005  # cut away range at left and right side
+        er_max = 0.1  # maximum allowed error
+        
+        MSD_in = getattr(self, f"msd_P")
+        
+        # n = np.logspace(np.log10(t_start), np.log10(self.t[-1]), steps, dtype=int)
+        # n = n[:np.where(n > self.t.shape)[0][0]]  # make very sure to not overflow time array
+        if linear is True:
+            # Linear Settings
+            # Settings for the margins and fit method.
+            Minc = 125  # minimum number of points included in the fit
+            Mmax = 250  # maximum number of points included in the fit
+
+            
+            t = self.t[t_start:]
+            step = (t.shape[0] ) // steps
+            t = t[::step]*1e-15
+            
+            MSD_in = MSD_in[t_start:]
+            MSD_in = MSD_in[::step]
+        else:
+            # Log spacing (like OCTP)
+            Minc = 8
+            Mmax = 20
+            steps = int(steps/20)
+            
+            n = np.logspace(np.log10(t_start), np.log10(self.t[-1]), steps, dtype=int)
+            n = n[:np.where(n > self.t.shape)[0][0]]  # make very sure to not overflow time array
+            t = self.t[n]*1e-15
+            MSD_in = MSD_in[n]
+        
+        t_log = np.log10(t)
+        MSD_log_in = np.log10(np.abs(MSD_in))
+        ibest = 'failed'
+        jbest = 'failed'
+        mbest = 0
+
+        for i in range(len(t_log)-Minc):
+            for j in range(Minc, len(t_log)-Minc-i):
+                if (t[i] != t[i+1]):
+                    p, res, aa, aa1, aa3 = np.polyfit(t_log[i:i+j],
+                                                    MSD_log_in[i:i+j], 1,
+                                                    full=True)
+                    mlog = p[0]
+                    if (mlog > (1-er_max) and mlog < (1+er_max) and abs(mbest-1) > abs(mlog-1)):
+                        mbest = mlog
+                        jbest = j
+                        ibest = i
+
+        # Make sure to return NaN (not included in np.nanmean() for averaging).
+        if ibest == 'failed':
+            D = np.nan
+            t_fit = t[0]
+            fit = MSD_in[0]
+
+        else:
+            D, b = np.polyfit(t[ibest:ibest+jbest],
+                            MSD_in[ibest:ibest+jbest], 1)
+
+            # Test box size to displacement comparison.
+            if np.abs(MSD_in[ibest+jbest]-MSD_in[ibest]) < m**2 and type(m) is not bool:
+                print('MSD fit is smaller than simulation box',
+                    MSD_in[ibest+jbest]-MSD_in[ibest], 'versus', m**2)
+
+            t_fit = t[ibest:ibest+jbest]
+            fit = D*t_fit + b
+
+        if plotting is True:
+            plt.figure('Viscosity fitting')
+            plt.title('viscosity')
+            plt.loglog(t, MSD_in, 'o', label='data')
+            plt.loglog(t_fit, fit, '-.', label='fit')
+            plt.grid()
+            plt.legend()
+
+        fact = 1000*(1e-30*self.L**3)/(2*co.k*self.energy[:, 3].mean())
         return D*fact
     
     def water_shape(self, force_rdf=True) -> Tuple[float, float]:

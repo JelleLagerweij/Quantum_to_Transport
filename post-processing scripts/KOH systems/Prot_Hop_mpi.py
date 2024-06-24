@@ -4,6 +4,7 @@ import glob
 import matplotlib.pyplot as plt
 import freud
 import scipy.constants as co
+import scipy as sp
 # from py4vasp import Calculation
 from mpi4py import MPI
 import time
@@ -52,7 +53,8 @@ class Prot_Hop:
         
         # afterwards on single core
         if self.rank == 0:
-            self.compute_MSD()
+            self.compute_MSD_pos()
+            self.compute_MSD_pres()
             
         self.save_results_all()
 
@@ -144,6 +146,7 @@ class Prot_Hop:
         self.pos_all_split = np.array_split(self.pos_all, self.size, axis=0)
         self.force_split = np.array_split(self.force, self.size, axis=0)
         self.t_split = np.array_split(self.t, self.size)
+        self.T_split = np.array_split(self.energy[:, 3], self.size, axis=0)
 
         # calculate chunk sizes for communication
         self.chunks = [int]*self.size
@@ -154,14 +157,7 @@ class Prot_Hop:
             sto = sta + len(self.pos_all_split[i][:, 0])
             self.steps_split[i] = np.arange(start=sta, stop=sto)
             sta = sto + 1
-        
-        # self.steps = np.arange(self.pos_all.shape[0])
-        # print(self.steps.size)
-        # self.steps_split = np.array_split(self.pos_all, self.size)
-        # print(self.steps.size)
-        # Todo lateron:
-        # 1. Load the stresses
-        # 2. Load the energies
+
 
     def setting_properties_all(self):
         """
@@ -204,12 +200,14 @@ class Prot_Hop:
             self.force_split = [np.empty((self.chunks[i], self.N_tot, 3)) for i in range(self.size)]  # create empty dumy on all cores
             self.steps_split = [np.empty(self.chunks[i]) for i in range(self.size)]
             self.t_split = [np.empty(self.chunks[i]) for i in range(self.size)]
+            self.T_split = [np.empty(self.chunks[i]) for i in range(self.size)]
 
         # Import the correct split position arrays
         self.pos = self.comm.scatter(self.pos_all_split, root=0)
         self.force = self.comm.scatter(self.force_split, root=0)
         self.steps = self.comm.scatter(self.steps_split, root=0)
         self.t = self.comm.scatter(self.t_split, root=0)
+        self.T_trans = self.comm.scatter(self.T_split, root=0)
         
         self.n_max = len(self.pos[:, 0, 0])  # number of timestep on core
         self.n_max_all = self.comm.allreduce(self.n_max, op=MPI.SUM)
@@ -330,7 +328,7 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def loop_timesteps_all(self, n_samples=250): 
+    def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
         
         The function tracks calls the molecule recognition function and the rdf functions when needed.
@@ -518,6 +516,8 @@ class Prot_Hop:
             #     self.rdf_F_HK = np.zeros_like(self.rdf_F_H2OH2O)
                 self.store_F_HH = []
                 self.rdf_F_HH = np.zeros_like(self.rdf_F_H2OH2O)
+            
+            self.rdf_F_T = []
             #     self.store_F_KO_all = []
             #     self.rdf_F_KO = np.zeros_like(self.rdf_F_H2OH2O)
             #     self.store_F_OO_all = []
@@ -561,7 +561,9 @@ class Prot_Hop:
             self.store_F_HH.append(this_F_rdf)
             self.rdf_F_HH += this_F_rdf
         
-        self.rdf_sample_counter += 1  
+        # Store the temperature of this snapshot
+        self.rdf_F_T.append(self.T_trans[n])
+        self.rdf_sample_counter += 1
 
     def rdf_force_state_all(self, r:np.ndarray, d:np.ndarray, F:np.ndarray):
         storage_array=np.zeros(np.size(self.rdf_F_bins), dtype=np.float64)
@@ -573,14 +575,15 @@ class Prot_Hop:
         # the next part is from revelsmd package, adjusted for my code
         digtized_array = np.digitize(d, self.rdf_F_bins)-1
         dp[digtized_array==np.size(self.rdf_F_bins)-1] = 0
-        
+
         storage_array[(np.size(self.rdf_F_bins)-1)]= np.sum(dp[(digtized_array==np.size(self.rdf_F_bins)-1)]) #conduct heaviside for our first bin
         for l in range(np.size(self.rdf_F_bins)-2,-1,-1):
             storage_array[l]= np.sum(dp[(digtized_array==l)])#conduct subsequent heavisides with a rolling sum
         return storage_array
     
     def rdf_force_rescale_all(self, store:list, rdf:np.ndarray, interactions:int):
-        rescale_geo =8*np.pi*(co.k/co.eV)*self.T_set  # USE AVERAGE TEMPERATURE LATER
+        T = np.array(self.rdf_F_T)  # Local temperatures
+        rescale_geo = (8*np.pi*(co.k/co.eV)*T).reshape(T.shape[0], 1)
         prefactor = self.L**3/(interactions)
         store = np.array(store)*prefactor/rescale_geo
         store_zero = np.array(np.cumsum(store, axis=1))[:,:-1]
@@ -589,7 +592,7 @@ class Prot_Hop:
         
         # total parts
         rescale_geo *= len(store)
-        rdf *= prefactor/rescale_geo
+        rdf *= prefactor/rescale_geo.mean()
         rdf_zero = np.array(np.cumsum(rdf)[:-1])
         rdf_inf = np.array(1-np.cumsum(rdf[::-1])[::-1][1:])
         rdf_delta = rdf_inf - rdf_zero
@@ -818,13 +821,28 @@ class Prot_Hop:
         # Getting a time array
         self.t = np.concatenate(self.t, axis=0)
 
-    def compute_MSD(self):
+    def compute_MSD_pos(self):
         # prepaire windowed MSD calculation mode with freud
         msd = freud.msd.MSD(mode='window')
         
         self.msd_OH = msd.compute(self.OH).msd
         self.msd_H2O = msd.compute(self.H2O).msd
         self.msd_K = msd.compute(self.K).msd
+    
+    def compute_MSD_pres(self):
+        # Load all pressure states to array.
+        p_ab = np.zeros((5, len(self.t)))
+        p_ab[0, :] = self.stress[:, 0, 1]  # xy
+        p_ab[1, :] = self.stress[:, 0, 2]  # xz
+        p_ab[2, :] = self.stress[:, 1, 2]  # yz
+        p_ab[3, :] = (self.stress[:, 0, 0] - self.stress[:, 1, 1]) / 2  # 0.5 xx-yy
+        p_ab[4, :] = (self.stress[:, 1, 1] - self.stress[:, 2, 2]) / 2  # 0.5 yy-zz
+        p_ab *= 1e8  # to go from kbar to Pa
+        
+        # Compute the running integrals for each component
+        p_ab_int = sp.integrate.cumulative_simpson(p_ab, x=self.t*1e-15, axis=-1, initial=None)
+        self.msd_P = integral =(p_ab_int**2).mean(axis=0)
+
 
     def save_results_all(self):
         # separate single core or multi core folders
@@ -863,6 +881,12 @@ class Prot_Hop:
         # create large dataframe with output
         df = h5py.File(os.path.normpath(path + '/output.h5'), "w")
         
+        # System properties
+        df.create_dataset("system/Lbox", data=self.L)
+        df.create_dataset("system/N_OH", data=self.N_OH)
+        df.create_dataset("system/N_K", data=self.N_K)
+        df.create_dataset("system/N_H2O", data=self.N_H2O)
+        
         # rdfs
         df.create_dataset("rdf/r", data=self.r_cent)
         df.create_dataset("rdf/g_H2OH2O(r)", data=self.rdf_H2OH2O)
@@ -900,6 +924,7 @@ class Prot_Hop:
         df.create_dataset("msd/OH", data=self.msd_OH)
         df.create_dataset("msd/H2O", data=self.msd_H2O)
         df.create_dataset("msd/K", data=self.msd_K)
+        df.create_dataset("msd/P", data=self.msd_P)
         
         # properties over time
         df.create_dataset("transient/time", data=self.t)
@@ -942,7 +967,7 @@ class Prot_Hop:
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
             configs[i] = ase.Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
-        ase.io.write(os.path.normpath(self.folder+name), configs, format='xyz', parallel=False)
+        ase.io.write(os.path.normpath(self.folder+name), configs, format='proteindatabank', parallel=False)
 
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
@@ -1065,9 +1090,17 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/MLMD/100ps_Exp_Density/i_1")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/RPBE_Production/AIMD/10ps/i_1/")
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
+<<<<<<< HEAD
 # Traj1 = Prot_Hop("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False, verbose=True)
+=======
+# Traj1 = Prot_Hop("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=False, verbose=False)
+>>>>>>> origin/multicore
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
-# Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
+Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
 
+<<<<<<< HEAD
 Traj = Prot_Hop(r"./", cheap=False, xyz_out=False, verbose=True)
 
+=======
+# Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
+>>>>>>> origin/multicore
