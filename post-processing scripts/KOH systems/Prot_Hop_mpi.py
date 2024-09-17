@@ -3,7 +3,7 @@ import glob
 import matplotlib.pyplot as plt
 import freud
 import scipy.constants as co
-import scipy as sp
+from scipy import integrate
 # from py4vasp import Calculation
 from mpi4py import MPI
 import time
@@ -830,18 +830,17 @@ class Prot_Hop:
     
     def compute_MSD_pres(self):
         # Load all pressure states to array.
-        p_ab = np.zeros((5, len(self.t)))
-        p_ab[0, :] = self.stress[:, 0, 1]  # xy
-        p_ab[1, :] = self.stress[:, 0, 2]  # xz
-        p_ab[2, :] = self.stress[:, 1, 2]  # yz
-        p_ab[3, :] = (self.stress[:, 0, 0] - self.stress[:, 1, 1]) / 2  # 0.5 xx-yy
-        p_ab[4, :] = (self.stress[:, 1, 1] - self.stress[:, 2, 2]) / 2  # 0.5 yy-zz
-        p_ab *= 1e8  # to go from kbar to Pa
+        p_ab = np.array([
+            self.stress[:, 0, 1],  # xy
+            self.stress[:, 0, 2],  # xz
+            self.stress[:, 1, 2],  # yz
+            (self.stress[:, 0, 0] - self.stress[:, 1, 1]) / 2,  # 0.5 xx-yy
+            (self.stress[:, 1, 1] - self.stress[:, 2, 2]) / 2   # 0.5 yy-zz
+            ]) * 1e8
         
         # Compute the running integrals for each component
-        p_ab_int = sp.integrate.cumulative_simpson(p_ab, x=self.t*1e-15, axis=-1, initial=None)
+        p_ab_int = integrate.cumulative_simpson(p_ab, dx=self.dt*1e-15, axis=-1, initial=None)
         self.msd_P = integral =(p_ab_int**2).mean(axis=0)
-
 
     def save_results_all(self):
         # separate single core or multi core folders
@@ -966,7 +965,7 @@ class Prot_Hop:
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
             configs[i] = ase.Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
-        ase.io.write(os.path.normpath(self.folder+name), configs, format='proteindatabank', parallel=False)
+        ase.io.write(os.path.normpath(self.folder+name), configs, format='xyz', parallel=False)
 
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
@@ -1091,6 +1090,6 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=True, xyz_out=False, verbose=False)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
-Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/1ns/", cheap=True, xyz_out=False, verbose=True)
+Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
 # Traj = Prot_Hop(r"./", cheap=True, xyz_out=True, verbose=True)
