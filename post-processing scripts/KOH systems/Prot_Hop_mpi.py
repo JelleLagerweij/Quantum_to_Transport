@@ -338,64 +338,66 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def  hydrogen_bonds2(self, OHH2O, n):
-        # OHH2O = AVAILABLE 
-        # self.idx_HO = AVIALABLE
-        # self.d_OHH2O = AVAILABLE is distance of OH- oxygen to H2O oxygen, in order of OHH2O
-        # self.d_HO = AVAILABLE is distance of any H to any oxygen, in order of HO 
-        # self.O_per_H = AVAILABLE, is per hydrogen which oxygen is the closest.
+    # def  hydrogen_bonds2(self, OHH2O, n):
+    #     # DEPRECIATED, this is a check, slower version of the vectorised hydrogen bonding function.
+    #     # HOWEVER, it is slower, so leave it for now.
+    #     # OHH2O = AVAILABLE 
+    #     # self.idx_HO = AVIALABLE
+    #     # self.d_OHH2O = AVAILABLE is distance of OH- oxygen to H2O oxygen, in order of OHH2O
+    #     # self.d_HO = AVAILABLE is distance of any H to any oxygen, in order of HO 
+    #     # self.O_per_H = AVAILABLE, is per hydrogen which oxygen is the closest.
         
-        OH_O_close = ( OHH2O & (self.d_OO < self.hb_dist))  # OHH2O already holds true or false for check if an O-O interaction is from OH to H2O or from H2O to OH.
+    #     OH_O_close = ( OHH2O & (self.d_OO < self.hb_dist))  # OHH2O already holds true or false for check if an O-O interaction is from OH to H2O or from H2O to OH.
         
-        # Clean up to get some easy to work with variables. Maybe change later for efficiency
-        idx_OH = self.OH_i[n]
-        idx_O_close = np.concatenate([self.idx_OO[0][OH_O_close & (self.idx_OO[1] == idx_OH)], self.idx_OO[1][OH_O_close & (self.idx_OO[0] == idx_OH)]])
-        d_OH_O_close = self.d_OO[OH_O_close]  # N by 1, the distance
-        r_OH_O_close = self.r_OO[OH_O_close, :]  # N by 3, the vector
+    #     # Clean up to get some easy to work with variables. Maybe change later for efficiency
+    #     idx_OH = self.OH_i[n]
+    #     idx_O_close = np.concatenate([self.idx_OO[0][OH_O_close & (self.idx_OO[1] == idx_OH)], self.idx_OO[1][OH_O_close & (self.idx_OO[0] == idx_OH)]])
+    #     d_OH_O_close = self.d_OO[OH_O_close]  # N by 1, the distance
+    #     r_OH_O_close = self.r_OO[OH_O_close, :]  # N by 3, the vector
         
-        # Direction OH to O_close
-        # Get bonded hydrogent to OH itself
-        idx_H = np.where(self.O_per_H == idx_OH)
-        d_HO = self.d_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_OH)]  # 1 by 1, the distance
-        r_HO = self.r_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_OH)]  # 1 by 3, the vector
+    #     # Direction OH to O_close
+    #     # Get bonded hydrogent to OH itself
+    #     idx_H = np.where(self.O_per_H == idx_OH)
+    #     d_HO = self.d_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_OH)]  # 1 by 1, the distance
+    #     r_HO = self.r_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_OH)]  # 1 by 3, the vector
         
-        # Get angle HO ... O_close
-        r_OH = r_HO / d_HO  # Normalize hydrogen vector
-        r_OOclose = r_OH_O_close / d_OH_O_close[:, np.newaxis]  # Normalize oxygen vectors
+    #     # Get angle HO ... O_close
+    #     r_OH = r_HO / d_HO  # Normalize hydrogen vector
+    #     r_OOclose = r_OH_O_close / d_OH_O_close[:, np.newaxis]  # Normalize oxygen vectors
 
-        # correct for the order:
-        flip_sign = np.where(self.idx_OO[0][OH_O_close] == idx_OH, -1, 1)
+    #     # correct for the order:
+    #     flip_sign = np.where(self.idx_OO[0][OH_O_close] == idx_OH, -1, 1)
 
-        # Compute dot products between normalized vectors
-        angles = np.arccos(np.einsum('ij,ij->i', r_OH, r_OOclose)*flip_sign)
+    #     # Compute dot products between normalized vectors
+    #     angles = np.arccos(np.einsum('ij,ij->i', r_OH, r_OOclose)*flip_sign)
 
-        # count Hbond donor if angle is under 30 degree
-        hbond_don = np.sum(angles < self.hb_ang ) # max hydrogen bonding angle
+    #     # count Hbond donor if angle is under 30 degree
+    #     hbond_don = np.sum(angles < self.hb_ang ) # max hydrogen bonding angle
 
-        # Direction HO_close O_hydroxide
-        # Get all bonded hydrogens to the O_close list
-        hbond_acc = 0
-        for i, idx_O in enumerate(idx_O_close):
-            d_OH_O = d_OH_O_close[i]  # N by 1, the distance
-            r_OH_O = r_OH_O_close[i, :]  # N by 3, the vector
+    #     # Direction HO_close O_hydroxide
+    #     # Get all bonded hydrogens to the O_close list
+    #     hbond_acc = 0
+    #     for i, idx_O in enumerate(idx_O_close):
+    #         d_OH_O = d_OH_O_close[i]  # N by 1, the distance
+    #         r_OH_O = r_OH_O_close[i, :]  # N by 3, the vector
             
-            idx_H = np.where(self.O_per_H == idx_O)  # This shall be 2 values as there are 2 Hydrogen per oxygen
+    #         idx_H = np.where(self.O_per_H == idx_O)  # This shall be 2 values as there are 2 Hydrogen per oxygen
 
-            d_HO = self.d_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_O)]  # 1 by 1, the distance
-            r_HO = self.r_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_O)]  # 1 by 3, the vector
+    #         d_HO = self.d_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_O)]  # 1 by 1, the distance
+    #         r_HO = self.r_HO[np.isin(self.idx_HO[0], idx_H) & np.isin(self.idx_HO[1], idx_O)]  # 1 by 3, the vector
             
-            # Get angle HO ... O_close
-            r_OH = r_HO / d_HO[:, np.newaxis]  # Normalize hydrogen vector
-            r_OO = r_OH_O / d_OH_O  # Normalize oxygen vectors
+    #         # Get angle HO ... O_close
+    #         r_OH = r_HO / d_HO[:, np.newaxis]  # Normalize hydrogen vector
+    #         r_OO = r_OH_O / d_OH_O  # Normalize oxygen vectors
             
-            # correct for the order:
-            flip_sign = np.where(idx_O > idx_OH, 1, -1)
+    #         # correct for the order:
+    #         flip_sign = np.where(idx_O > idx_OH, 1, -1)
             
-            # Compute dot products between normalized vectors
-            angles = np.arccos(np.einsum('ij,j->i', r_OH, r_OO)*flip_sign)
+    #         # Compute dot products between normalized vectors
+    #         angles = np.arccos(np.einsum('ij,j->i', r_OH, r_OO)*flip_sign)
             
-            hbond_acc += np.sum(angles < self.hb_ang)
-        return hbond_don, hbond_acc
+    #         hbond_acc += np.sum(angles < self.hb_ang)
+    #     return hbond_don, hbond_acc
     
     def hydrogen_bonds(self, OHH2O, n):
         # Filter O-O close interactions
