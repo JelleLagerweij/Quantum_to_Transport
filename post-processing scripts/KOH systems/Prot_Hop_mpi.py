@@ -964,7 +964,8 @@ class Prot_Hop:
     def save_results_all(self):
         # separate single core or multi core folders
         if self.size == 1:
-            path = os.path.normpath(self.folder + r"/single_core/")
+            # path = os.path.normpath(self.folder + r"/single_core/")
+            path = self.folder
         else:
             path = self.folder
         # self.save_numpy_files_main(path)
@@ -996,8 +997,9 @@ class Prot_Hop:
                     self.write_to_xyz_all(i)
 
     def create_dataframe_main(self, path: str):
+        file = {os.path.normpath(path + '/output.h5')}
         if self.verbose is True:
-            print(f'Prepairing outputfile {os.path.normpath(path + '/output.h5')} completed on rank: {self.rank}')
+            print(f'Prepairing outputfile {file} completed on rank: {self.rank}')
 
         # create large dataframe with output
         df = h5py.File(os.path.normpath(path + '/output.h5'), "w")
@@ -1061,10 +1063,12 @@ class Prot_Hop:
         df.close()
         
         if self.verbose is True:
-            print(f'writing outputfile {os.path.normpath(path + '/output.h5')} completed on rank: {self.rank}')
+            print(f'writing outputfile {file} completed on rank: {self.rank}')
 
     def write_to_xyz_all(self, type):
         # assesing tasks correctly
+        
+        # I do have positions of the OH- at every timestep
         if type == 0:
             ## unwrapped unprocessed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
@@ -1073,7 +1077,8 @@ class Prot_Hop:
         if type == 1:
             ## wrapped processed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
-            pos = self.pos_all % self.L
+            pos = self.pos_all - self.pos_pro[:, 0, np.newaxis, :] + self.L / 2
+            pos = pos % self.L
             name = '/traj_unprocessed_wrapped'
         if type == 2:
             ## unwrapped unprocessed postitions
@@ -1083,17 +1088,18 @@ class Prot_Hop:
         if type == 3:
             ## wrapped processed postitions
             types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
-            pos = self.pos_pro % self.L
+            pos = self.pos_pro - self.pos_pro[:, 0, np.newaxis, :] + self.L / 2
+            pos = pos % self.L
             name = '/traj_processed_wrapped'
 
         if self.verbose is True:
             print(f'prepare for writing {name} started on rank: {self.rank}')
-        file_type = '.pdb'
+        file_type = '.xyz'
 
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
             configs[i] = Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
-        io.write(os.path.normpath(self.folder+name+file_type), configs, format='proteindatabank', parallel=False)
+        io.write(os.path.normpath(self.folder+name+file_type), configs, format='xyz', parallel=False)
 
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
@@ -1216,6 +1222,6 @@ class Prot_Hop:
 # Traj = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", verbose=True)
 # Traj1 = Prot_Hop("/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/combined_simulation/", cheap=False, xyz_out=False, verbose=True)
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
-Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
+# Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
-# Traj = Prot_Hop(r"./", cheap=False, xyz_out=True, verbose=True)
+Traj = Prot_Hop(r"./", cheap=False, xyz_out=True, verbose=True)
