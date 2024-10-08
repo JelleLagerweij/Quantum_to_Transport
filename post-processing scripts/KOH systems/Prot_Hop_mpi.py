@@ -83,7 +83,7 @@ class Prot_Hop:
                 self.folder = self.folder
         except:
             print('no automatic filepath conversion available use relative path')
-            self.folder = os.getcwd()
+            self.folder = os.path.normpath(os.getcwd() + "/" + self.folder)
 
         # finds all vaspout*.h5 files in folder and orders them alphabetically
         subsimulations = sorted(glob.glob(os.path.normpath(self.folder + "/vaspout*.h5")))
@@ -994,7 +994,7 @@ class Prot_Hop:
             self.comm.Bcast(self.pos_all, root=0)
             for i in range(4):
                 if (i+1) % self.size == self.rank:
-                    self.write_to_xyz_all(i)
+                    self.write_to_xyz_all(i, format='xyz')
 
     def create_dataframe_main(self, path: str):
         file = {os.path.normpath(path + '/output.h5')}
@@ -1065,7 +1065,7 @@ class Prot_Hop:
         if self.verbose is True:
             print(f'writing outputfile {file} completed on rank: {self.rank}')
 
-    def write_to_xyz_all(self, type):
+    def write_to_xyz_all(self, type, format='xyz'):
         # assesing tasks correctly
         
         # I do have positions of the OH- at every timestep
@@ -1094,12 +1094,20 @@ class Prot_Hop:
 
         if self.verbose is True:
             print(f'prepare for writing {name} started on rank: {self.rank}')
-        file_type = '.xyz'
-
+            
+        if format == 'xyz':
+            file_ext = '.xyz'
+            format = 'xyz'
+        elif format == 'pdb':
+            file_ext = '.pdb'
+            format = 'proteindatabank'
+        else:
+            raise ValueError(f"Unsupported format: {format}")
+            
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
             configs[i] = Atoms(types, positions=pos[i, :, :], cell=[self.L, self.L, self.L], pbc=True)
-        io.write(os.path.normpath(self.folder+name+file_type), configs, format='xyz', parallel=False)
+        io.write(os.path.normpath(self.folder+name+file_ext), configs, format=format, parallel=False)
 
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
@@ -1119,97 +1127,6 @@ class Prot_Hop:
             np.savez(os.path.normpath(path + r"/output.npz"),
                     OH_i=self.OH_i, OH=self.OH, H2O_i=self.H2O_i, H2O=self.H2O,  # tracking OH-
                     r_rdf=self.r_cent, rdf_H2OH2O=self.rdf_H2OH2O, rdf_OHH2O=self.rdf_OHH2O, rdf_KH2O=self.rdf_KH2O)  # sensing the rdf
-    
-    # def test_combining_main(self):
-    #     if self.size == 1:                
-    #         path = os.path.normpath(self.folder + r"/single_core")
-    #         try:
-    #             os.mkdir(path)
-    #         except OSError as error:
-    #             error = 1
-            
-    #     else:
-    #         path = os.path.normpath(self.folder + r"/multi_core")
-    #         try:
-    #             os.mkdir(path)
-    #         except OSError as error:
-    #             error = 1
-    #         try:
-    #             loaded = np.load(os.path.normpath(self.folder + r"/single_core/output.npz"))
-    #             # test outputs of code
-    #             if np.allclose(self.OH_i, loaded['OH_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("Indexing OH between multicore and single core arrays differs more than acceptable")
-    #             if np.allclose(self.OH, loaded['OH'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("Positions OH between multicore and single core arrays differs more than acceptable")
-    #             if np.allclose(self.H2O_i, loaded['H2O_i'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("Indexing H2O between multicore and single core arrays differs more than acceptable")
-    #             if np.allclose(self.H2O, loaded['H2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("Positions H2O between multicore and single core arrays differs more than acceptable")
-    #             if np.allclose(self.rdf_H2OH2O, loaded['rdf_H2OH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("RDF H2O-H2O between multicore and single core arrays differs more than acceptable")
-    #                 print("maximum difference =", np.max(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), loaded['r_rdf'][np.argmax(self.rdf_H2OH2O - loaded['rdf_H2OH2O'])])
-    #                 plt.plot(self.r_cent, np.abs(self.rdf_H2OH2O - loaded['rdf_H2OH2O']), label='water - water')
-    #             if np.allclose(self.rdf_OHH2O, loaded['rdf_OHH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("RDF OH-H2O between multicore and single core arrays differs more than acceptable")
-    #                 print("maximum difference =", np.max(self.rdf_OHH2O - loaded['rdf_OHH2O']), loaded['r_rdf'][np.argmax(self.rdf_OHH2O - loaded['rdf_OHH2O'])])
-    #                 plt.plot(self.r_cent, np.abs(self.rdf_OHH2O - loaded['rdf_OHH2O']), label='hydroxide - water')
-    #             if np.allclose(self.rdf_KH2O, loaded['rdf_KH2O'], rtol=1e-05, atol=1e-08, equal_nan=False) == False:
-    #                 print("RDF K-H2O between multicore and single core arrays differs more than acceptable")
-    #                 print("maximum difference =", np.max(self.rdf_KH2O - loaded['rdf_KH2O']), loaded['r_rdf'][np.argmax(self.rdf_KH2O - loaded['rdf_KH2O'])])
-    #                 plt.plot(self.r_cent, np.abs(self.rdf_KH2O - loaded['rdf_KH2O']), label='potassium - water')
-    #                 plt.savefig(path + r'/rdf_diff.png')
-    #                 plt.close()
-    #         except:
-    #             print('No single core checking file availlable, checking is useless', flush=True)
-            
-            # plt.figure()
-            # # plt.plot(self.OH[:, 0, :], label=['x', 'y', 'z'])
-            # plt.plot(self.t, self.OH_i)
-            # for i in range(1, self.size):
-            #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('OH- atom index')          
-            # plt.savefig(os.path.normpath(path + r'/index_OH.png'))
-            # plt.close()
-            
-            # plt.figure()
-            # plt.plot(self.t, self.n_OH)
-            # for i in range(1, self.size):
-            #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('number of OH-')
-            # plt.savefig(os.path.normpath(path + r'/n_OH.png'))
-            # plt.close()
-            
-            # disp = np.sqrt(np.sum((self.OH[1:, :, :]- self.OH[:-1, :, :])**2, axis=2))
-            # plt.figure()
-            # plt.plot(self.t[:-1], disp)
-            # # for i in range(1, self.size):
-            # #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('OH displacement between timesteps/[Angstrom]')
-            # plt.savefig(os.path.normpath(path + r'/dis_OH.png'))
-            # plt.close()
-            
-            # disp = np.sqrt(np.sum((self.H2O[1:, :, :]- self.H2O[:-1, :, :])**2, axis=2))
-            # plt.figure()
-            # plt.plot(self.t[:-1], disp)
-            # # for i in range(1, self.size):
-            # #     plt.axvline(x=self.t[-1]*i/self.size, color = 'c')
-            # plt.xlabel('time/[fs]')      
-            # plt.ylabel('H2O displacement between timesteps/[Angstrom]')
-            # plt.savefig(os.path.normpath(path + r'/dis_H2O.png'))
-            # plt.close()
-            
-            # plt.figure()
-            # plt.plot(self.r_cent, self.rdf_H2OH2O, label='Water-Water')
-            # plt.plot(self.r_cent, self.rdf_KH2O, label='Potassium-Water')
-            # plt.plot(self.r_cent, self.rdf_OHH2O, label='Hydroxide-Water')
-            # plt.legend()
-            # plt.xlabel('radius in A')
-            # plt.ylabel('g(r)')
-            # plt.savefig(os.path.normpath(path + r'/rdf_H2OH2O'))
-            # plt.close()
 
 
 # Example usage
