@@ -14,7 +14,7 @@ from ase import io, Atoms
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, cheap=True, verbose=False, xyz_out=False, serial_check=False):
+    def __init__(self, folder, r_hb_old=2.9, cheap=True, verbose=False, xyz_out=False, serial_check=False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -40,6 +40,7 @@ class Prot_Hop:
         self.verbose = verbose
         self.xyz_out = xyz_out
         self.serial_check = serial_check
+        self.r_max_count = r_hb_old
 
         # Normal Startup Behaviour
         self.setting_properties_all()  # all cores
@@ -338,7 +339,7 @@ class Prot_Hop:
     
     def  hydrogen_bonds(self, OHH2O, n):
         if n == 0:
-            self.hbs = np.zeros((self.n_max, 4, 2), dtype=int)
+            self.hbs = np.zeros((self.n_max, 5, 2), dtype=int)
         
         # NAMING CONVENTION ACCORDING TO R. Kumar; J. R. Schmidt; J. L. Skinner 2007 (except gamma)
         OH_O_close = (OHH2O & (self.d_OO < 3.5))  # OHH2O already holds true or false for check if an O-O interaction is from OH to H2O or from H2O to OH.
@@ -355,6 +356,7 @@ class Prot_Hop:
         b_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_OH)][0]  # 1 by 1, the distance
         b_don_norm = b_don_vec / b_don_len  # Normalized OH molecular bond vector
         
+        self.hbs[n, 0, 0] = np.sum(d_OH_O_close < self.r_max_count)
         for i, idx_O in enumerate(idx_O_close):
             # Collect details of relevant vectors
             # Step 1, slice correct O-O distance vector
@@ -390,10 +392,10 @@ class Prot_Hop:
                                   b_don_norm[2]*r_don_norm[2])
             
             # Cheat python: True will be treated as 1, False as 0, so you can use this in equations.
-            self.hbs[n, 0, 0] += (beta_don < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
-            self.hbs[n, 1, 0] += (R_len + 1.4444347940051674*beta_don**2 < 3.3)  # Wernet Nordlund Bermann (2004)
-            self.hbs[n, 2, 0] += ((theta_don > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
-            self.hbs[n, 3, 0] += ((r_don_len < 2.27) & (theta_don > 2.443460952792061))  # Kuo and Mundy (2004) !! 
+            self.hbs[n, 1, 0] += (beta_don < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
+            self.hbs[n, 2, 0] += (R_len + 1.4444347940051674*beta_don**2 < 3.3)  # Wernet Nordlund Bermann (2004)
+            self.hbs[n, 3, 0] += ((theta_don > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
+            self.hbs[n, 4, 0] += ((r_don_len < 2.27) & (theta_don > 2.443460952792061))  # Kuo and Mundy (2004) !! 
 
             # Part 2: Acceptor testing
             beta_acc = np.arccos(-(b_acc_norm[:, 0]*R_norm[0]
@@ -404,32 +406,12 @@ class Prot_Hop:
                                   + b_acc_norm[:, 2]*r_acc_norm[:, 2])
             
             # Cheat python: True will be treated as 1, False as 0, so you can use this in equations.
-            self.hbs[n, 0, 1] += np.sum(beta_acc < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
-            self.hbs[n, 1, 1] += np.sum(R_len + 1.4444347940051674*beta_acc**2 < 3.3)  # Wernet Nordlund Bermann (2004)
-            self.hbs[n, 2, 1] += np.sum((theta_acc > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
-            self.hbs[n, 3, 1] += np.sum((r_acc_len < 2.27) & (theta_acc > 2.443460952792061))  # Kuo and Mundy (2004) !! TODO maybe adjust minimal length to 1.1A
+            self.hbs[n, 1, 1] += np.sum(beta_acc < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
+            self.hbs[n, 2, 1] += np.sum(R_len + 1.4444347940051674*beta_acc**2 < 3.3)  # Wernet Nordlund Bermann (2004)
+            self.hbs[n, 3, 1] += np.sum((theta_acc > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
+            self.hbs[n, 4, 1] += np.sum((r_acc_len < 2.27) & (theta_acc > 2.443460952792061))  # Kuo and Mundy (2004) !! TODO maybe adjust minimal length to 1.1A
         
-        # Only for print debugging.
-        #     if np.isin(n, np.array([50, 500, 1000, 2000, 4000, 6500])):
-        #         print('n =', n)
-        #         print(R_len, r_don_len, np.rad2deg(beta_don), np.rad2deg(theta_don))
-        #         print('hb1_don = ', (beta_don < 0.5235987755982988))
-        #         print('hb2_don = ', (R_len + 1.4444347940051674*beta_don**2 < 3.3))
-        #         print('hb3_don = ', ((theta_don > 2.443460952792061) & (R_len < 3.1)))
-        #         print('hb4_don = ', ((r_don_len < 2.27) & (theta_don > 2.443460952792061)))
-                
-        #         print(R_len, r_acc_len, np.rad2deg(beta_acc), np.rad2deg(theta_acc))
-        #         print('hb1_acc = ', (beta_acc < 0.5235987755982988))
-        #         print('hb2_acc = ', (R_len + 1.4444347940051674*beta_acc**2 < 3.3))
-        #         print('hb3_acc = ', ((theta_acc > 2.443460952792061) & (R_len < 3.1)))
-        #         print('hb4_acc = ', ((r_acc_len < 2.27) & (theta_acc > 2.443460952792061)))
-        #         d = 0  # convinient break point.
-        
-        # if np.isin(n, np.array([50, 500, 1000, 2000, 4000, 6500])):
-        #     print('n =', n)
-        #     print('don =', hb1_don, hb2_don, hb3_don, hb4_don)
-        #     print('acc =', hb1_acc, hb2_acc, hb3_acc, hb4_acc)
-        #     d = 0 # convinient break point
+
 
     def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
@@ -976,7 +958,7 @@ class Prot_Hop:
 
         # save position output if needed as .xyz (4 seperate files) on separate cores
         # communicate arrays
-        if self.xyz_out:
+        if self.xyz_out is not False:
             if self.rank == 0:
                 shape = self.pos_all.shape
                 self.pos_pro = np.concatenate((self.OH, self.H2O,
@@ -994,7 +976,7 @@ class Prot_Hop:
             self.comm.Bcast(self.pos_all, root=0)
             for i in range(4):
                 if (i+1) % self.size == self.rank:
-                    self.write_to_xyz_all(i, format='xyz')
+                    self.write_to_xyz_all(i)
 
     def create_dataframe_main(self, path: str):
         file = {os.path.normpath(path + '/output.h5')}
@@ -1065,7 +1047,7 @@ class Prot_Hop:
         if self.verbose is True:
             print(f'writing outputfile {file} completed on rank: {self.rank}')
 
-    def write_to_xyz_all(self, type, format='xyz'):
+    def write_to_xyz_all(self, type):
         # assesing tasks correctly
         
         # I do have positions of the OH- at every timestep
@@ -1094,15 +1076,15 @@ class Prot_Hop:
 
         if self.verbose is True:
             print(f'prepare for writing {name} started on rank: {self.rank}')
-            
-        if format == 'xyz':
+
+        if self.xyz_out == 'xyz':
             file_ext = '.xyz'
             format = 'xyz'
-        elif format == 'pdb':
+        elif self.xyz_out == 'pdb':
             file_ext = '.pdb'
             format = 'proteindatabank'
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            raise ValueError(f"Unsupported molecular file output format: {format}. Either disable output with xyz=False, or set 'xyz' or 'pdb'.")
             
         configs = [None]*pos.shape[0]
         for i in range(self.pos_all.shape[0]):
@@ -1141,4 +1123,4 @@ class Prot_Hop:
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
-Traj = Prot_Hop(r"./", cheap=False, xyz_out=True, verbose=True)
+Traj = Prot_Hop(r"post-processing scripts/KOH systems/test_output", cheap=False, xyz_out="pdb", verbose=True)
