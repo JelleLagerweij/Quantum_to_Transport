@@ -44,8 +44,9 @@ class Prot_Hop:
 
         # Normal Startup Behaviour
         self.setting_properties_all()  # all cores
-        self.loop_timesteps_all()
+        self.loop_timesteps_all()  # identify OH-
         self.stitching_together_all()
+        self.loop_timesteps_next_OH_all()  # loop back and also find hbond of water becomming OH-
 
         # afterwards on single core
         if self.rank == 0:
@@ -338,6 +339,23 @@ class Prot_Hop:
 
     
     def  hydrogen_bonds(self, OHH2O, n):
+        """
+        Calculate hydrogen bonds for the given timestep.
+
+        This function calculates five different types of hydrogen bonds:
+        1. Total number oxygens within a certain range.
+        2. Total number of oxygens within 3.5A and HOO angle smaller than 30 deg.
+        3. Number of hydrogen bonds where OH- is the acceptor.
+        4. Number of hydrogen bonds where H2O is the donor.
+        5. Number of hydrogen bonds where H2O is the acceptor.
+
+        Parameters:
+        OHH2O (numpy.ndarray): Boolean array indicating if an O-O interaction is from OH to H2O or from H2O to OH.
+        n (int): The current timestep index.
+
+        Returns:
+        None: Updates the hydrogen bond information in the class instance.
+    """
         if n == 0:
             self.hbs = np.zeros((self.n_max, 5, 2), dtype=int)
         
@@ -346,7 +364,8 @@ class Prot_Hop:
         
         # Clean up to get some easy to work with variables. Maybe change later for efficiency
         idx_OH = self.OH_i[n]
-        idx_O_close = np.concatenate([self.idx_OO[0][OH_O_close & (self.idx_OO[1] == idx_OH)], self.idx_OO[1][OH_O_close & (self.idx_OO[0] == idx_OH)]])
+        idx_O_close = np.concatenate([self.idx_OO[0][OH_O_close & (self.idx_OO[1] == idx_OH)],
+                                      self.idx_OO[1][OH_O_close & (self.idx_OO[0] == idx_OH)]])
         d_OH_O_close = self.d_OO[OH_O_close]  # N by 1, the distance
         r_OH_O_close = self.r_OO[OH_O_close, :]  # N by 3, the vector
         
@@ -442,7 +461,7 @@ class Prot_Hop:
 
         for n in range(self.n_max):  # Loop over all timesteps
             if (n % 10000 == 0) and (self.verbose is True) and (n > 0):
-                print("time is:", self.t[n], "rank is:", self.rank, flush=True)
+                print("time is:", self.t[n], " in pass 1, rank is:", self.rank, flush=True)
             # Calculate only OH distances for OH- recognition
             self.r_HO = (self.pos_O[n, self.idx_HO[1], :] - self.pos_H[n, self.idx_HO[0], :] + self.L/2) % self.L - self.L/2
             self.d_HO = np.sqrt(np.sum(self.r_HO**2, axis=1))
@@ -920,6 +939,86 @@ class Prot_Hop:
         # Getting a time array
         self.t = np.concatenate(self.t, axis=0)
 
+    def calculate_next_OH_main(self):
+        """
+        Calculate the next OH- molecule index for each time step.
+
+        This function creates an array that identifies the next OH- molecule index
+        for each time step. If no new index is found, the next index is set to 0.
+
+        Returns:
+        numpy.ndarray: An array with the next OH- molecule index for each time step.
+        """
+        next_OH_i = np.zeros_like(self.OH_i)
+        for i in range(self.OH_i.shape[1]):
+            current_indices = self.OH_i[:, i]
+            change_indices = np.where(current_indices[:-1] != current_indices[1:])[0] + 1
+            old_change_index = 0
+            for new_change_index in change_indices:
+                next_OH_i[old_change_index:new_change_index, i] = self.OH_i[new_change_index, i]
+                old_change_index = new_change_index
+        return next_OH_i
+    
+    def hydrogen_bonds_next_OH(self, nextOHO, n):
+        if n == 0:
+            self.hbs_next_OH = np.zeros((self.n_max, self.N_O, self.N_O), dtype=int)
+        
+        next_OH_O_close = (nextOHO & (self.d_OO < 3.5))  # first shell to check for hydrogen bonding
+        idx_nextOH = self.next_OH_i[n]
+        idx_O_close = np.concatenate([self.idx_OO[0][next_OH_O_close & (self.idx_OO[1] == idx_nextOH)],
+                                      self.idx_OO[1][next_OH_O_close & (self.idx_OO[0] == idx_nextOH)]])
+        
+
+    def loop_timesteps_next_OH_all(self):
+        # Preperation steps with communication
+        if self.rank == 0:
+            # Calculate the next OH- index
+            self.next_OH_i = self.calculate_next_OH_main()
+            
+            # prep to split the array appropriately
+            self.next_OH_i_split = np.array_split(self.next_OH_i, self.size, axis=0)
+            for i in range(1, self.size):  # only send to specific cores in chunks
+                self.comm.Send([self.next_OH_i_split[i], MPI.DOUBLE], dest=i)
+                
+            self.next_OH_i = self.next_OH_i_split[0]
+        
+        if self.rank != 0:
+            self.next_OH_i = np.empty((self.chunks[self.rank], self.N_tot))  # create empty dumy on all cores
+            self.comm.Recv([self.next_OH_i, MPI.DOUBLE], source=0)  # receive the correct split position arrays
+        
+        # All the communication done. Now calculate intermolecular distances again.
+
+        for n in range(self.n_max):  # Loop over all timesteps
+            if (n % 10000 == 0) and (self.verbose is True) and (n > 0):
+                print("time is:", self.t[n], " in pass 2, rank is:", self.rank, flush=True)
+            # Calculate only OH dist seances for OH- recognition
+            self.r_HO = (self.pos_O[n, self.idx_HO[1], :] - self.pos_H[n, self.idx_HO[0], :] + self.L/2) % self.L - self.L/2
+            self.d_HO = np.sqrt(np.sum(self.r_HO**2, axis=1))
+            self.O_per_H = np.argmin(self.d_HO.reshape((self.N_H, self.N_O)), axis=1)
+        
+            # Oxygen-Oxygen
+            # already compted for Hydrogen bonding numbers
+            self.r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
+            self.d_OO = np.sqrt(np.sum(self.r_OO**2, axis=1))
+
+            nextOHO = ((np.isin(self.idx_OO[0], self.next_OH_i[n])) | (np.isin(self.idx_OO[1], self.next_OH_i[n])))
+
+            self.d_nextOHO = self.d_OO[nextOHO]
+            self.r_nextOHO = self.r_OO[nextOHO]
+            self.hydrogen_bonds_next_OH(nextOHO, n)
+
+        if self.rank == 0 and self.verbose is True:
+            print('Time calculating distances', time.time() - self.tstart)
+            
+            
+            
+            
+            
+            
+            
+            
+            
+        
     def compute_MSD_pos(self):
         # prepaire windowed MSD calculation mode with freud
         msd = freud.msd.MSD(mode='window')
