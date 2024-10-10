@@ -337,7 +337,6 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    
     def  hydrogen_bonds(self, OHH2O, n):
         """
         Calculate hydrogen bonds for the given timestep.
@@ -355,7 +354,7 @@ class Prot_Hop:
 
         Returns:
         None: Updates the hydrogen bond information in the class instance.
-    """
+        """
         if n == 0:
             self.hbs = np.zeros((self.n_max, 5, 2), dtype=int)
         
@@ -371,50 +370,49 @@ class Prot_Hop:
         
         # get bond vector within OH- (intern)
         idx_H_int = np.where(self.O_per_H == idx_OH)
-        b_don_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_OH)][0]  # 1 by 3, the vector
-        b_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_OH)][0]  # 1 by 1, the distance
-        b_don_norm = b_don_vec / b_don_len  # Normalized OH molecular bond vector
+        b_don_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_OH)]  # 1 by 3, the vector
+        b_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_OH)]  # 1 by 1, the distance
+        b_don_norm = b_don_vec / b_don_len[:, np.newaxis]  # Normalized OH molecular bond vector
         
-        self.hbs[n, 0, 0] = np.sum(d_OH_O_close < self.r_max_count)
+        self.hbs[n, 0, 0] = np.sum(d_OH_O_close < self.r_max_count)  # most simple oxygen distance counter
         for i, idx_O in enumerate(idx_O_close):
             # Collect details of relevant vectors
             # Step 1, slice correct O-O distance vector
             flip_sign = np.where(idx_O < idx_OH, 1, -1)
-            R_vec = r_OH_O_close[i]
-            R_len = d_OH_O_close[i]
-            R_norm = R_vec*flip_sign/R_len
+            R_vec = r_OH_O_close[i]  # 1 by 3, the vector
+            R_len = d_OH_O_close[i]  # 1 by 1, the length
+            R_norm = R_vec*flip_sign/R_len  # 1 by 3, the normalized vector
             
             # Step 2, find H in molecule idx_O_close and bond vectors (extern)
             idx_H_ext = np.where(self.O_per_H == idx_O)  # This shall be 2 values as there are 2 Hydrogen per oxygen
-            b_acc_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_O)]
-            b_acc_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_O)]
-            b_acc_norm = b_acc_vec/b_acc_len[:, np.newaxis]
+            b_acc_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_O)]  # 2 by 3, the vector
+            b_acc_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_O)]  # 2 by 1, the distance
+            b_acc_norm = b_acc_vec/b_acc_len[:, np.newaxis]  # 2 by 3, the normalized vector
             
-            # Step 3, find vector Hydrogen-Hydrogen r in Kumar; J. R. Schmidt; J. L. Skinner 2007
-            # We should find 1 vector
-            r_don_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_O)][0]
-            r_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_O)][0]
-            r_don_norm = r_don_vec/r_don_len
+            # Step 3, find vector Hydrogen-Oxygen r in Kumar; J. R. Schmidt; J. L. Skinner 2007
+            r_don_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_O)]  # 2 by 3, the vector
+            r_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_O)]  # 2 by 1, the distance
+            r_don_norm = r_don_vec/r_don_len[:, np.newaxis]  # 2 by 3, the normalized vector
             
-            # Step 4, find vector Hydrogen-Hydrogen r in Kumar; J. R. Schmidt; J. L. Skinner 2007
+            # Step 4, find vector Hydrogen-Oxygen r in Kumar; J. R. Schmidt; J. L. Skinner 2007
             # We should find 2 vectors
             r_acc_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_OH)]
             r_acc_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_OH)]
             r_acc_norm = r_acc_vec/r_acc_len[:, np.newaxis]
             
             # Part 1: Donor testing
-            beta_don = np.arccos(b_don_norm[0]*R_norm[0] +
-                                 b_don_norm[1]*R_norm[1] +
-                                 b_don_norm[2]*R_norm[2]) 
-            theta_don = np.arccos(b_don_norm[0]*r_don_norm[0] +
-                                  b_don_norm[1]*r_don_norm[1] +
-                                  b_don_norm[2]*r_don_norm[2])
+            beta_don = np.arccos(b_don_norm[:, 0]*R_norm[0] +
+                                 b_don_norm[:, 1]*R_norm[1] +
+                                 b_don_norm[:, 2]*R_norm[2]) 
+            theta_don = np.arccos(b_don_norm[:, 0]*r_don_norm[:, 0] +
+                                  b_don_norm[:, 1]*r_don_norm[:, 1] +
+                                  b_don_norm[:, 2]*r_don_norm[:, 2])
             
             # Cheat python: True will be treated as 1, False as 0, so you can use this in equations.
-            self.hbs[n, 1, 0] += (beta_don < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
-            self.hbs[n, 2, 0] += (R_len + 1.4444347940051674*beta_don**2 < 3.3)  # Wernet Nordlund Bermann (2004)
-            self.hbs[n, 3, 0] += ((theta_don > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
-            self.hbs[n, 4, 0] += ((r_don_len < 2.27) & (theta_don > 2.443460952792061))  # Kuo and Mundy (2004) !! 
+            self.hbs[n, 1, 0] += np.sum(beta_don < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
+            self.hbs[n, 2, 0] += np.sum(R_len + 1.4444347940051674*beta_don**2 < 3.3)  # Wernet Nordlund Bermann (2004)
+            self.hbs[n, 3, 0] += np.sum((theta_don > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
+            self.hbs[n, 4, 0] += np.sum((r_don_len < 2.27) & (theta_don > 2.443460952792061))  # Kuo and Mundy (2004) !! 
 
             # Part 2: Acceptor testing
             beta_acc = np.arccos(-(b_acc_norm[:, 0]*R_norm[0]
@@ -429,8 +427,6 @@ class Prot_Hop:
             self.hbs[n, 2, 1] += np.sum(R_len + 1.4444347940051674*beta_acc**2 < 3.3)  # Wernet Nordlund Bermann (2004)
             self.hbs[n, 3, 1] += np.sum((theta_acc > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
             self.hbs[n, 4, 1] += np.sum((r_acc_len < 2.27) & (theta_acc > 2.443460952792061))  # Kuo and Mundy (2004) !! TODO maybe adjust minimal length to 1.1A
-        
-
 
     def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
@@ -963,11 +959,75 @@ class Prot_Hop:
         if n == 0:
             self.hbs_next_OH = np.zeros((self.n_max, self.N_O, self.N_O), dtype=int)
         
-        next_OH_O_close = (nextOHO & (self.d_OO < 3.5))  # first shell to check for hydrogen bonding
         idx_nextOH = self.next_OH_i[n]
+        next_OH_O_close = (nextOHO & (self.d_OO < 3.5))  # first shell to check for hydrogen bonding
         idx_O_close = np.concatenate([self.idx_OO[0][next_OH_O_close & (self.idx_OO[1] == idx_nextOH)],
                                       self.idx_OO[1][next_OH_O_close & (self.idx_OO[0] == idx_nextOH)]])
         
+        # list relevant oxygen-oxygen distances
+        d_OH_O_close = self.d_OO[next_OH_O_close]  # N by 1, the distance
+        r_OH_O_close = self.r_OO[next_OH_O_close]  # N by 3, the vector
+        
+        # get bond bevtor within nextOH (intern)
+        idx_H_int = np.where(self.O_per_H == idx_nextOH)  # it shall result in 2 hydrogens as this is still water
+        b_don_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_nextOH)]  # 2 by 3 the vector
+        b_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_nextOH)]  # 2 by 1 the length
+        b_don_norm = b_don_vec/b_don_len[:, np.newaxis]
+        
+        self.hbs_next_OH[n, 0, 0] = np.sum(d_OH_O_close < self.r_max_count)  # most simple oxygen distance counter
+        for i, idx_O in enumerate(idx_O_close):
+            # Collect details of relevant vectors
+            # Step 1, slice correct O-O distance vector
+            flip_sign = np.where(idx_O < idx_nextOH, -1, 1)  # flip sign if the index is smaller than the next OH
+            R_vec = r_OH_O_close[i]  # 1 by 3, the vector
+            R_len = d_OH_O_close[i]  # 1 by 1, the length
+            R_norm = R_vec*flip_sign/R_len  # 1 by 3, the normalized vector
+            
+            # Step 2, find H in molecule idx_O_close and bond vectors (extern)
+            idx_H_ext = np.where(self.O_per_H == idx_O)  # This shall be 2 values as there are 2 Hydrogen per oxygen
+            b_acc_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_O)]  # 2 (or 1) by 3, the vector
+            b_acc_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_O)]  # 2 (or 1) by 1, the distance
+            b_acc_norm = b_acc_vec/b_acc_len[:, np.newaxis]  # 2 (or 1) by 3, the normalized vector
+            
+            # Step 3, find vector Hydrogen-Oxygen r in Kumar; J. R. Schmidt; J. L. Skinner 2007
+            r_don_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_O)]  # 2 by 3, the vector
+            r_don_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_int) & np.isin(self.idx_HO[1], idx_O)]  # 2 by 1, the distance
+            r_don_norm = r_don_vec/r_don_len[:, np.newaxis]  # 2 by 3, the normalized vector
+            
+            # Step 4, find vector Hydrogen-Oxygen r in Kumar; J. R. Schmidt; J. L. Skinner 2007
+            # We should find 2 vectors
+            r_acc_vec = self.r_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_nextOH)]  # 2 (or 1) by 3, the vector
+            r_acc_len = self.d_HO[np.isin(self.idx_HO[0], idx_H_ext) & np.isin(self.idx_HO[1], idx_nextOH)]  # 2 (or 1) by 1, the distance
+            r_acc_norm = r_acc_vec/r_acc_len[:, np.newaxis]  # 2 (or 1) by 3, the normalized vector
+            
+            # Part 1: Donor testing
+            beta_don = np.arccos(b_don_norm[:, 0]*R_norm[0] +
+                                 b_don_norm[:, 1]*R_norm[1] +
+                                 b_don_norm[:, 2]*R_norm[2]) 
+            theta_don = np.arccos(b_don_norm[:, 0]*r_don_norm[:, 0] +
+                                  b_don_norm[:, 1]*r_don_norm[:, 1] +
+                                  b_don_norm[:, 2]*r_don_norm[:, 2])
+            
+            # Cheat python: True will be treated as 1, False as 0, so you can use this in equations.
+            self.hbs_next_OH[n, 1, 0] += np.sum(beta_don < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
+            self.hbs_next_OH[n, 2, 0] += np.sum(R_len + 1.4444347940051674*beta_don**2 < 3.3)  # Wernet Nordlund Bermann (2004)
+            self.hbs_next_OH[n, 3, 0] += np.sum((theta_don > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
+            self.hbs_next_OH[n, 4, 0] += np.sum((r_don_len < 2.27) & (theta_don > 2.443460952792061))  # Kuo and Mundy (2004) !!
+            
+            # Part 2: Acceptor testing
+            beta_acc = np.arccos(-(b_acc_norm[:, 0]*R_norm[0]
+                                 + b_acc_norm[:, 1]*R_norm[1]
+                                 + b_acc_norm[:, 2]*R_norm[2])) 
+            theta_acc = np.arccos(b_acc_norm[:, 0]*r_acc_norm[:, 0]
+                                  + b_acc_norm[:, 1]*r_acc_norm[:, 1]
+                                  + b_acc_norm[:, 2]*r_acc_norm[:, 2])
+            
+            # Cheat python: True will be treated as 1, False as 0, so you can use this in equations.
+            self.hbs_next_OH[n, 1, 1] += np.sum(beta_acc < 0.5235987755982988)  # Chandler and Luzar (1996) 30 degree beta limit
+            self.hbs_next_OH[n, 2, 1] += np.sum(R_len + 1.4444347940051674*beta_acc**2 < 3.3)  # Wernet Nordlund Bermann (2004)
+            self.hbs_next_OH[n, 3, 1] += np.sum((theta_acc > 2.443460952792061) & (R_len < 3.1))  # The way Sana does it (Giulia Galli & Francois Gygi 2000) 140 degree limit
+            self.hbs_next_OH[n, 4, 1] += np.sum((r_acc_len < 2.27) & (theta_acc > 2.443460952792061))  # Kuo and Mundy (2004) !! TODO maybe adjust minimal length to 1.1A
+                 
 
     def loop_timesteps_next_OH_all(self):
         # Preperation steps with communication
@@ -1003,20 +1063,10 @@ class Prot_Hop:
 
             nextOHO = ((np.isin(self.idx_OO[0], self.next_OH_i[n])) | (np.isin(self.idx_OO[1], self.next_OH_i[n])))
 
-            self.d_nextOHO = self.d_OO[nextOHO]
-            self.r_nextOHO = self.r_OO[nextOHO]
             self.hydrogen_bonds_next_OH(nextOHO, n)
 
         if self.rank == 0 and self.verbose is True:
-            print('Time calculating distances', time.time() - self.tstart)
-            
-            
-            
-            
-            
-            
-            
-            
+            print('Time calculating distances pass', time.time() - self.tstart)
             
         
     def compute_MSD_pos(self):
@@ -1040,7 +1090,6 @@ class Prot_Hop:
         # Compute the running integrals for each component
         p_ab_int = integrate.cumulative_simpson(p_ab, dx=self.dt*1e-15, axis=-1, initial=None)
         self.msd_P = integral =(p_ab_int**2).mean(axis=0)
-
 
     def save_results_all(self):
         # separate single core or multi core folders
@@ -1222,4 +1271,4 @@ class Prot_Hop:
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
-Traj = Prot_Hop(r"post-processing scripts/KOH systems/test_output", cheap=False, xyz_out="pdb", verbose=True)
+Traj = Prot_Hop(r"post-processing scripts/KOH systems/test_output", cheap=False, xyz_out=False, verbose=True)
