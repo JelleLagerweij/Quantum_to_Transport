@@ -231,7 +231,7 @@ class Prot_Hop:
             print('Time after communication', time.time() - self.tstart, flush=True)
 
         if self.verbose:
-            print('done on rank', self.rank, 'size', self.pos.shape, flush=True)
+            print('Communication done on rank', self.rank, 'size', self.pos.shape, flush=True)
 
     def recognize_molecules_all(self, n):
         """
@@ -345,8 +345,10 @@ class Prot_Hop:
         # Get all oxygen-oxygen interactions close to idx_Oc
         Oc_Other = ((np.isin(self.idx_OO[0], idx_Oc)) | (np.isin(self.idx_OO[1], idx_Oc)))  # all other Oxygen Oxygen interactions
         O_close = (Oc_Other & (self.d_OO < 3.5))
+        if n < 5:
+            print(f"CRASH? Oc_Other = {Oc_Other.shape}, O_close = {O_close.shape}, idx_Oc = {idx_Oc}, n = {n}, rank={self.rank}", flush=True)
         idx_O_close = np.concatenate([self.idx_OO[0][O_close & (self.idx_OO[1] == idx_Oc)],
-                                      self.idx_OO[1][O_close & (self.idx_OO[0] == idx_Oc)]])
+                                      self.idx_OO[1][O_close & (self.idx_OO[0] == idx_Oc)]], axis=0)
         
         # List relevant oxygen-oxygen interactions
         r_O_O_close = self.r_OO[O_close]  # N by 3, the vector
@@ -413,7 +415,6 @@ class Prot_Hop:
             hbs[4, 1] += np.sum((r_acc_len < 2.27) & (theta_acc > 2.443460952792061))  # Kuo and Mundy (2004) !! TODO maybe adjust minimal length to 1.1A
         
         return hbs
-
 
     def loop_timesteps_all(self, n_samples=10): 
         """This function loops over all timesteps and tracks all over time properties
@@ -952,15 +953,13 @@ class Prot_Hop:
             
             # prep to split the array appropriately
             self.next_OH_i_split = np.array_split(self.next_OH_i, self.size, axis=0)
-            for i in range(1, self.size):  # only send to specific cores in chunks
-                self.comm.Send([self.next_OH_i_split[i], MPI.DOUBLE], dest=i)
-                
-            self.next_OH_i = self.next_OH_i_split[0]
+            print(f"self.next_OH_i.shape = {self.next_OH_i.shape}, self.next_OH_i_split.shape = {len(self.next_OH_i_split)}", flush=True)
+        else:
+            # all other ranks
+            self.next_OH_i_split = None  # create empty dummy on all cores
         
-        if self.rank != 0:
-            self.next_OH_i = np.empty((self.chunks[self.rank], self.N_tot))  # create empty dumy on all cores
-            self.comm.Recv([self.next_OH_i, MPI.DOUBLE], source=0)  # receive the correct split position arrays
-        
+        self.next_OH_i = self.comm.scatter(self.next_OH_i_split, root=0)  # scatter the array to all cores
+
         # All the communication done. Now calculate intermolecular distances again.
         self.next_OH_hbs = np.zeros((self.n_max, 5, 2), dtype=int)
         for n in range(self.n_max):  # Loop over all timesteps
@@ -976,6 +975,8 @@ class Prot_Hop:
             self.r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
             self.d_OO = np.sqrt(np.sum(self.r_OO**2, axis=1))
 
+            if n < 5:
+                print(f"self.next_OH_i[n] = {self.next_OH_i[n].shape}, n = {n}, rank={self.rank}", flush=True)
             self.next_OH_hbs[n] = self.hydrogen_bonds(self.next_OH_i[n], n)
 
         # Gather all the results
@@ -983,7 +984,7 @@ class Prot_Hop:
         self.next_OH_hbs = self.comm.gather(self.next_OH_hbs, root=0)
         if self.rank == 0 and self.verbose is True:
             self.next_OH_hbs = np.concatenate(self.next_OH_hbs, axis=0)
-            print('Time calculating distances pass', time.time() - self.tstart)
+            print('Time calculating distances pass', time.time() - self.tstart, flush=True)
     
     def compute_MSD_pos(self):
         # prepaire windowed MSD calculation mode with freud
@@ -1188,4 +1189,4 @@ class Prot_Hop:
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
-Traj = Prot_Hop(r"post-processing scripts/KOH systems/test_output", cheap=False, xyz_out=False, verbose=True)
+Traj = Prot_Hop(r"AIMD/AIMD_1m_2/run_1/", cheap=False, xyz_out="pdb", verbose=True)
