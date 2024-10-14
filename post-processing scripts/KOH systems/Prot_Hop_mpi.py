@@ -345,8 +345,6 @@ class Prot_Hop:
         # Get all oxygen-oxygen interactions close to idx_Oc
         Oc_Other = ((np.isin(self.idx_OO[0], idx_Oc)) | (np.isin(self.idx_OO[1], idx_Oc)))  # all other Oxygen Oxygen interactions
         O_close = (Oc_Other & (self.d_OO < 3.5))
-        if n < 5:
-            print(f"CRASH? Oc_Other = {Oc_Other.shape}, O_close = {O_close.shape}, idx_Oc = {idx_Oc}, n = {n}, rank={self.rank}", flush=True)
         idx_O_close = np.concatenate([self.idx_OO[0][O_close & (self.idx_OO[1] == idx_Oc)],
                                       self.idx_OO[1][O_close & (self.idx_OO[0] == idx_Oc)]], axis=0)
         
@@ -364,7 +362,7 @@ class Prot_Hop:
         for i, idx_O in enumerate(idx_O_close):
             # Collect details of relevant vectors
             # Step 1, slice correct O-O distance vector
-            flip_sign = np.where(idx_O < idx_Oc, -1, 1)  # flip sign if the index is smaller than the next OH
+            flip_sign = np.where(idx_O > idx_Oc, -1, 1)  # flip sign if the index is smaller than the next OH
             R_vec = r_O_O_close[i]  # 1 by 3, the vector
             R_len = d_O_O_close[i]  # 1 by 1, the length
             R_norm = R_vec*flip_sign/R_len  # 1 by 3, the normalized vector
@@ -953,7 +951,6 @@ class Prot_Hop:
             
             # prep to split the array appropriately
             self.next_OH_i_split = np.array_split(self.next_OH_i, self.size, axis=0)
-            print(f"self.next_OH_i.shape = {self.next_OH_i.shape}, self.next_OH_i_split.shape = {len(self.next_OH_i_split)}", flush=True)
         else:
             # all other ranks
             self.next_OH_i_split = None  # create empty dummy on all cores
@@ -975,15 +972,15 @@ class Prot_Hop:
             self.r_OO = (self.pos_O[n, self.idx_OO[1], :] - self.pos_O[n, self.idx_OO[0], :] + self.L/2) % self.L - self.L/2
             self.d_OO = np.sqrt(np.sum(self.r_OO**2, axis=1))
 
-            if n < 5:
-                print(f"self.next_OH_i[n] = {self.next_OH_i[n].shape}, n = {n}, rank={self.rank}", flush=True)
             self.next_OH_hbs[n] = self.hydrogen_bonds(self.next_OH_i[n], n)
 
         # Gather all the results
         # Gather hydrogen bonding array
         self.next_OH_hbs = self.comm.gather(self.next_OH_hbs, root=0)
+        self.next_OH_i = self.comm.gather(self.next_OH_i, root=0)
         if self.rank == 0 and self.verbose is True:
             self.next_OH_hbs = np.concatenate(self.next_OH_hbs, axis=0)
+            self.next_OH_i = np.concatenate(self.next_OH_i, axis=0)
             print('Time calculating distances pass', time.time() - self.tstart, flush=True)
     
     def compute_MSD_pos(self):
@@ -1041,7 +1038,7 @@ class Prot_Hop:
             self.comm.Bcast(self.pos_all, root=0)
             for i in range(4):
                 if (i+1) % self.size == self.rank:
-                    self.write_to_xyz_all(i)
+                    self.write_to_xyz_all(i, center=False)
 
     def create_dataframe_main(self, path: str):
         file = {os.path.normpath(path + '/output.h5')}
@@ -1099,6 +1096,7 @@ class Prot_Hop:
         # properties over time
         df.create_dataset("transient/time", data=self.t)
         df.create_dataset("transient/index_OH", data=self.OH_i)
+        df.create_dataset("transient/index_next_OH", data=self.next_OH_i)
         df.create_dataset("transient/index_H2O", data=self.H2O_i)
         df.create_dataset("transient/index_K", data=self.K_i)
         df.create_dataset("transient/pos_OH", data=self.OH)
@@ -1113,7 +1111,7 @@ class Prot_Hop:
         if self.verbose is True:
             print(f'writing outputfile {file} completed on rank: {self.rank}')
 
-    def write_to_xyz_all(self, type):
+    def write_to_xyz_all(self, type, center=False):
         # assesing tasks correctly
         
         # I do have positions of the OH- at every timestep
@@ -1125,7 +1123,10 @@ class Prot_Hop:
         if type == 1:
             ## wrapped processed postitions
             types = ['H']*self.N_H + ['O']*self.N_O + ['K']*self.N_K
-            pos = self.pos_all - self.pos_pro[:, 0, np.newaxis, :] + self.L / 2
+            if center:
+                pos = self.pos_all - self.pos_pro[:, 0, np.newaxis, :] + self.L / 2
+            else:
+                pos = self.pos_all
             pos = pos % self.L
             name = '/traj_unprocessed_wrapped'
         if type == 2:
@@ -1136,7 +1137,12 @@ class Prot_Hop:
         if type == 3:
             ## wrapped processed postitions
             types = ['F']*self.N_OH + ['O']*self.N_H2O + ['K']*self.N_K + ['H']*self.N_H
-            pos = self.pos_pro - self.pos_pro[:, 0, np.newaxis, :] + self.L / 2
+            
+            if center:
+                pos = self.pos_pro - self.pos_pro[:, 0, np.newaxis, :] + self.L / 2
+            else:
+                pos = self.pos_pro
+
             pos = pos % self.L
             name = '/traj_processed_wrapped'
 
@@ -1189,4 +1195,4 @@ class Prot_Hop:
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
-Traj = Prot_Hop(r"AIMD/AIMD_1m_2/run_1/", cheap=False, xyz_out="pdb", verbose=True)
+Traj = Prot_Hop(r"AIMD/AIMD_1m_2/run_2/", cheap=False, xyz_out="pdb", verbose=True)
