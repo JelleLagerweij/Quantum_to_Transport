@@ -9,12 +9,20 @@ from mpi4py import MPI
 import time
 import os
 import h5py
+from typing import Optional
 from ase import io, Atoms
 
 class Prot_Hop:
     """MPI supporting postprocesses class for NVT VASP simulations of aqueous KOH."""
 
-    def __init__(self, folder, r_hb_old=2.9, cheap=True, verbose=False, xyz_out=False, serial_check=False):
+    def __init__(self, 
+                 folder: str, 
+                 r_hb_old: float = 2.9, 
+                 cheap: bool = True, 
+                 verbose: bool = False, 
+                 xyz_out: bool | str = False, 
+                 serial_check: bool = False, 
+                 center: bool = False):
         """
         Postprocesses class for NVT VASP simulations of aqueous KOH.
 
@@ -25,8 +33,29 @@ class Prot_Hop:
         using minimal and maximal bond lengths.
 
         Args:
-            folder (string): path to hdf5 otput file
+            folder (string): path to hdf5 output file
+            r_hb_old (float or int): maximum hydrogen bond distance
+            cheap (bool): flag for cheapened calculation
+            verbose (bool): flag for verbose output
+            xyz_out (bool or string): output format for xyz, can be False, "xyz" or "pdb"
+            serial_check (bool): flag for serial check
+            center (bool): flag for centering
         """
+        if not isinstance(folder, str):
+            raise ValueError("folder must be a string")
+        if not isinstance(r_hb_old, (float, int)):
+            raise ValueError("r_hb_old must be a float or int")
+        if not isinstance(cheap, bool):
+            raise ValueError("cheap must be a boolean")
+        if not isinstance(verbose, bool):
+            raise ValueError("verbose must be a boolean")
+        if not (xyz_out is False or xyz_out in ["xyz", "pdb"]):
+            raise ValueError('xyz_out must be False, "xyz", or "pdb"')
+        if not isinstance(serial_check, bool):
+            raise ValueError("serial_check must be a boolean")
+        if not isinstance(center, bool):
+            raise ValueError("center must be a boolean")
+
         self.tstart = time.time()
         self.species = ['H', 'O', 'K']
 
@@ -41,6 +70,7 @@ class Prot_Hop:
         self.xyz_out = xyz_out
         self.serial_check = serial_check
         self.r_max_count = r_hb_old
+        self.center = center  # has to be a boolean
 
         # Normal Startup Behaviour
         self.setting_properties_all()  # all cores
@@ -73,7 +103,7 @@ class Prot_Hop:
         This function should only be executed on the main core
 
         Args:
-            folder (string): path to hdf5 otput file
+            folder (string): path to hdf5 output file
         """
         try:
             self.folder = os.path.normpath(self.folder)
@@ -180,12 +210,16 @@ class Prot_Hop:
             self.N = np.empty(3, dtype=int)
             self.dt = float
             self.T_set = float
+            self.center = bool
+            self.verbose = bool
         
         self.chunks = self.comm.bcast(self.chunks, root=0)
         self.L = self.comm.bcast(self.L, root=0)
         self.N = self.comm.bcast(self.N, root=0)
         self.dt = self.comm.bcast(self.dt, root=0)
         self.T_set =  self.comm.bcast(self.T_set, root=0)
+        self.center = self.comm.bcast(self.center, root=0)
+        self.verbose = self.comm.bcast(self.verbose, root=0)
         
         # print('self.dt is', self.dt, 'self.T_set is', self.T_set, 'rank is', self.rank)
         # Asses the number of Hydrogens
@@ -233,7 +267,7 @@ class Prot_Hop:
         if self.verbose:
             print('Communication done on rank', self.rank, 'size', self.pos.shape, flush=True)
 
-    def recognize_molecules_all(self, n):
+    def recognize_molecules_all(self, n: int) -> None:
         """
         Find the index of the Oxygen beloging to the OH- or H2O.
 
@@ -339,7 +373,17 @@ class Prot_Hop:
                 self.H2O[n, :, :] = self.pos_O[n, self.H2O_i[n, :], :]+ self.L*self.H2O_shift
                 self.OH_i_s = OH_i  # always sort after reaction or initiation to have a cheap check lateron.
 
-    def hydrogen_bonds(self, idx_Oc, n):
+    def hydrogen_bonds(self, idx_Oc: int, n: int) -> np.ndarray:
+        """
+        Calculate hydrogen bonds for a given oxygen index and time step.
+
+        Args:
+            idx_Oc (int): Index of the oxygen atom.
+            n (int): Time step.
+
+        Returns:
+            np.ndarray: Array of hydrogen bond information.
+        """
         hbs = np.zeros((5, 2), dtype=int)
         
         # Get all oxygen-oxygen interactions close to idx_Oc
@@ -414,13 +458,14 @@ class Prot_Hop:
         
         return hbs
 
-    def loop_timesteps_all(self, n_samples=10): 
-        """This function loops over all timesteps and tracks all over time properties
-        
-        The function tracks calls the molecule recognition function and the rdf functions when needed.
+    def loop_timesteps_all(self, n_samples: int = 10) -> None:
+        """
+        Loop over all timesteps and track time-dependent properties.
+
+        This function calls the molecule recognition function and the RDF functions when needed.
 
         Args:
-            n_samples (int, optional): time between sampling rdfs. Defaults to 10.
+            n_samples (int, optional): Time between sampling RDFs. Defaults to 10.
         """
         # split the arrays up to per species description
         self.pos_H = self.pos[:, self.H_i, :]
@@ -532,7 +577,21 @@ class Prot_Hop:
         if self.rank == 0 and self.verbose is True:
             print('Time calculating distances', time.time() - self.tstart)
 
-    def rdf_compute_all(self, n, nb=32, r_max=None):
+    def rdf_compute_all(self, n: int, nb: int = 32, r_max: Optional[float] = None) -> None:
+        """
+        Compute the radial distribution functions (RDF) for various pairs of particles.
+        Parameters:
+        -----------
+        n : int
+            The current step or iteration number. If n == 0, initializes the RDF arrays.
+        nb : int, optional
+            The number of bins to use for the histogram. Default is 32.
+        r_max : float, optional
+            The maximum distance for the RDF calculation. If None, it is set to half the box length.
+        Returns:
+        --------
+        None
+        """
         # RDF startup scheme
         if n == 0:
             # set standard maximum rdf value
@@ -576,7 +635,16 @@ class Prot_Hop:
                 self.rdf_KO_all += np.histogram(self.d_KO_all, bins=self.r)[0]
                 self.rdf_OO_all += np.histogram(self.d_OO_all, bins=self.r)[0]
 
-    def rdf_force_compute_all(self, n: int, nb=2048, r_max=None):
+    def rdf_force_compute_all(self, n: int, nb: int = 2048, r_max: Optional[float] = None) -> None:
+        """
+        Compute the force radial distribution functions (RDF) for various pairs of particles.
+
+        Args:
+            n (int): The current step or iteration number.
+
+        Returns:
+            None
+        """
         # RDF startup scheme
         if n == 0:
             self.rdf_sample_counter = 0
@@ -660,7 +728,24 @@ class Prot_Hop:
         self.rdf_F_T.append(self.T_trans[n])
         self.rdf_sample_counter += 1
 
-    def rdf_force_state_all(self, r:np.ndarray, d:np.ndarray, F:np.ndarray):
+    def rdf_force_state_all(self, r:np.ndarray, d:np.ndarray, F:np.ndarray) -> np.ndarray:
+        """
+        Calculate the radial distribution function (RDF) force state for all particles.
+        This function computes the RDF force state for all particles based on their positions,
+        distances, and forces. It returns an array representing the RDF force state.
+        Parameters:
+        -----------
+        r : np.ndarray
+            An array of shape (N, 3) representing the positions of the particles.
+        d : np.ndarray
+            An array of shape (N,) representing the distances between particles.
+        F : np.ndarray
+            An array of shape (N, 3) representing the forces acting on the particles.
+        Returns:
+        --------
+        np.ndarray
+            An array representing the RDF force state for all particles.
+        """
         storage_array=np.zeros(np.size(self.rdf_F_bins), dtype=np.float64)
 
         F_dot_r = np.sum(F*r, axis=1)/d  # F dot rxyz/r (strength of F in the direction of r)
@@ -676,7 +761,16 @@ class Prot_Hop:
             storage_array[l]= np.sum(dp[(digtized_array==l)])#conduct subsequent heavisides with a rolling sum
         return storage_array
     
-    def rdf_force_rescale_all(self, store:list, rdf:np.ndarray, interactions:int):
+    def rdf_force_rescale_all(self, store:list, rdf:np.ndarray, interactions:int) -> np.ndarray:
+        """
+        Rescales the radial distribution function (rdf) and force data for all interactions.
+        Parameters:
+            store (list): A list containing the force data to be rescaled.
+            rdf (np.ndarray): An array containing the radial distribution function data.
+            interactions (int): The number of interactions to consider for rescaling.
+        Returns:
+            np.ndarray: A 2D array containing the rescaled rdf, rdf_zero, and rdf_inf values.
+        """
         T = np.array(self.rdf_F_T)  # Local temperatures
         rescale_geo = (8*np.pi*(co.k/co.eV)*T).reshape(T.shape[0], 1)
         prefactor = self.L**3/(interactions)
@@ -699,7 +793,24 @@ class Prot_Hop:
         rdf = np.mean(store_inf*(1-weights)+(store_zero*weights), axis=0)
         return np.array([rdf.astype(np.float64), rdf_zero.astype(np.float64), rdf_inf.astype(np.float64)])
             
-    def stitching_together_all(self):
+    def stitching_together_all(self) -> None:
+        """
+        Gathers and reduces various simulation data across all MPI processes to the root process.
+        This method performs the following steps:
+        1. Gathers OH-, H2O, H3O+, K, and H positional and count data from all MPI processes to the root process.
+        2. Gathers time arrays and hydrogen bonding arrays from all MPI processes to the root process.
+        3. Rescales and reduces radial distribution functions (RDFs) for various particle interactions.
+        4. Rescales and reduces force RDFs for various particle interactions.
+        5. Re-centers RDF bins.
+        6. Calls `stitching_together_main` on the root process to finalize the stitching of data.
+        Note:
+            - The method uses MPI gather and reduce operations to collect and aggregate data.
+            - Rescaling of RDFs is based on the geometry and sample counters.
+            - The method handles both cheap and non-cheap RDF calculations.
+            - Only ion-ion self-interactions are considered if more than one ion is present.
+        Returns:
+            None
+        """
         # prepair gethering on all cores 1) All OH- stuff
         self.OH_i = self.comm.gather(self.OH_i, root=0)
         self.OH = self.comm.gather(self.OH, root=0)
@@ -719,7 +830,8 @@ class Prot_Hop:
         self.H = self.comm.gather(self.pos_H, root=0)
 
         # gather the time arrays as well
-        self.t = self.comm.gather(self.t, root=0)
+        self.t_full= np.copy(self.t)
+        self.t_full = self.comm.gather(self.t_full, root=0)
         
         # Gather hydrogen bonding array
         self.current_OH_hbs = self.comm.gather(self.current_OH_hbs, root=0)
@@ -798,7 +910,21 @@ class Prot_Hop:
         if self.rank == 0:
             self.stitching_together_main()
       
-    def stitching_together_main(self):
+    def stitching_together_main(self) -> None:
+        """
+        This method stitches together simulation data across multiple segments, ensuring continuity and consistency
+        for OH- and H2O molecules. It handles mismatches at the boundaries of segments, swaps columns to align data,
+        and adjusts for periodic boundary conditions (PBC). The method also combines the adjusted arrays back into
+        their original shapes.
+        Steps:
+        1. For each segment boundary, check for mismatches in OH- and H2O indices.
+        2. Swap columns in the data arrays to align mismatched indices.
+        3. Handle cases where reactions occur at the stitching location.
+        4. Adjust for periodic boundary conditions in the shift columns.
+        5. Combine the adjusted arrays back into their original shapes.
+        Returns:
+            None
+        """
         # NOW ADD 1 reaction recognition and 2 reordering
         # for every end of 1 section check with start next one
         for n in range(self.size-1):
@@ -921,9 +1047,9 @@ class Prot_Hop:
         # RDF functionality has no need to do anything
         
         # Getting a time array
-        self.t = np.concatenate(self.t, axis=0)
+        self.t_full = np.concatenate(self.t_full, axis=0)
 
-    def calculate_next_OH_main(self):
+    def calculate_next_OH_main(self) -> np.ndarray:
         """
         Calculate the next OH- molecule index for each time step.
 
@@ -931,7 +1057,7 @@ class Prot_Hop:
         for each time step. If no new index is found, the next index is set to 0.
 
         Returns:
-        numpy.ndarray: An array with the next OH- molecule index for each time step.
+            numpy.ndarray: An array with the next OH- molecule index for each time step.
         """
         next_OH_i = np.zeros_like(self.OH_i)
         for i in range(self.OH_i.shape[1]):
@@ -943,7 +1069,17 @@ class Prot_Hop:
                 old_change_index = new_change_index
         return next_OH_i               
 
-    def loop_timesteps_next_OH_all(self):
+    def loop_timesteps_next_OH_all(self) -> None:
+        """
+        Perform a loop over all timesteps to calculate intermolecular distances and hydrogen bonds for OH- ions 
+        using MPI for parallel processing.
+        This method performs the following steps:
+        1. Preparation steps with MPI communication to distribute the workload among different ranks.
+        2. Calculate intermolecular distances for OH- ions and hydrogen bonds at each timestep.
+        3. Gather the results from all ranks and concatenate them on the root rank.
+        Returns:
+            None
+        """
         # Preperation steps with communication
         if self.rank == 0:
             # Calculate the next OH- index
@@ -983,7 +1119,15 @@ class Prot_Hop:
             self.next_OH_i = np.concatenate(self.next_OH_i, axis=0)
             print('Time calculating distances pass', time.time() - self.tstart, flush=True)
     
-    def compute_MSD_pos(self):
+    def compute_MSD_pos(self) -> None:
+        """
+        Compute the Mean Squared Displacement (MSD) for different particle types.
+        This method calculates the MSD for OH, H2O, and K particles using the 
+        freud library's windowed MSD calculation mode. The results are stored 
+        in the instance variables `msd_OH`, `msd_H2O`, and `msd_K`.
+        Returns:
+            None
+        """
         # prepaire windowed MSD calculation mode with freud
         msd = freud.msd.MSD(mode='window')
         
@@ -991,7 +1135,26 @@ class Prot_Hop:
         self.msd_H2O = msd.compute(self.H2O).msd
         self.msd_K = msd.compute(self.K).msd
     
-    def compute_MSD_pres(self):
+    def compute_MSD_pres(self) -> None:
+        """
+        Compute the Mean Squared Displacement (MSD) of the pressure tensor components.
+        This method calculates the MSD of the pressure tensor components by first loading
+        the relevant components of the stress tensor into an array, then computing the 
+        running integrals for each component using Simpson's rule, and finally calculating 
+        the mean squared displacement.
+        The pressure tensor components considered are:
+        - xy component of the stress tensor
+        - xz component of the stress tensor
+        - yz component of the stress tensor
+        - 0.5 * (xx - yy) component of the stress tensor
+        - 0.5 * (yy - zz) component of the stress tensor
+        The stress tensor components are scaled by 1e8 to convert units appropriately.
+        The running integrals are computed using the cumulative Simpson's rule with a 
+        time step of `self.dt * 1e-15`.
+        The resulting MSD is stored in the `self.msd_P` attribute.
+        Returns:
+            None
+        """
         # Load all pressure states to array.
         p_ab = np.array([
             self.stress[:, 0, 1],  # xy
@@ -1005,7 +1168,31 @@ class Prot_Hop:
         p_ab_int = integrate.cumulative_simpson(p_ab, dx=self.dt*1e-15, axis=-1, initial=None)
         self.msd_P = integral =(p_ab_int**2).mean(axis=0)
 
-    def save_results_all(self):
+    def save_results_all(self) -> None:
+        """
+        Save the results of the simulation.
+        This method handles the saving of results for both single-core and multi-core
+        simulations. It performs the following tasks:
+        - Determines the appropriate folder path based on the number of cores.
+        - Creates the output HDF5 file on the main core.
+        - Optionally saves position output as .xyz files on separate cores.
+        - Communicates arrays between cores using MPI.
+        Attributes:
+            size (int): The number of cores used in the simulation.
+            folder (str): The folder path where results are saved.
+            rank (int): The rank of the current core.
+            xyz_out (bool): Flag indicating whether to save position output as .xyz files.
+            pos_all (np.ndarray): Array containing all positions.
+            pos_pro (np.ndarray): Array containing processed positions.
+            OH (np.ndarray): Array containing OH positions.
+            H2O (np.ndarray): Array containing H2O positions.
+            K (np.ndarray): Array containing K positions.
+            H (np.ndarray): Array containing H positions.
+            comm (MPI.Comm): MPI communicator for broadcasting data between cores.
+            center (bool): Flag indicating whether to center the positions in the .xyz files.
+        Returns:
+            None
+        """
         # separate single core or multi core folders
         if self.size == 1:
             # path = os.path.normpath(self.folder + r"/single_core/")
@@ -1038,9 +1225,30 @@ class Prot_Hop:
             self.comm.Bcast(self.pos_all, root=0)
             for i in range(4):
                 if (i+1) % self.size == self.rank:
-                    self.write_to_xyz_all(i, center=False)
+                    self.write_to_xyz_all(i, center=self.center)
 
-    def create_dataframe_main(self, path: str):
+    def create_dataframe_main(self, path: str) -> None:
+        """
+        Creates an HDF5 file at the specified path and populates it with various datasets.
+        Parameters:
+        path (str): The directory path where the output HDF5 file will be created.
+        The function performs the following tasks:
+        - Creates an HDF5 file named 'output.h5' in the specified directory.
+        - Populates the file with system properties, radial distribution functions (rdfs), 
+          force rdfs, mean squared displacements (msds), and transient properties over time.
+        - Includes additional datasets based on the values of `self.N_K` and `self.cheap`.
+        Datasets created:
+        - System properties: Lbox, N_OH, N_K, N_H2O.
+        - Radial distribution functions (rdfs): r, g_H2OH2O(r), g_OHH2O(r), g_KH2O(r), g_KOH(r), 
+          g_OHOH(r), g_KK(r), g_HOH(r), g_HH2O(r), g_HH(r), g_KO(r), g_OO(r).
+        - Force rdfs: r, g_H2OH2O(r), g_OHH2O(r), g_KOH(r), g_KH2O(r), g_OHOH(r), g_KK(r), 
+          g_HOH(r), g_HH2O(r), g_HH(r).
+        - Mean squared displacements (msds): OH, H2O, K, P.
+        - Transient properties over time: time, index_OH, index_next_OH, index_H2O, index_K, 
+          pos_OH, pos_H2O, pos_K, stresses, energies, current_OH_hbs, next_OH_hbs.
+        If `self.verbose` is True, prints messages indicating the progress of file preparation 
+        and writing.
+        """
         file = {os.path.normpath(path + '/output.h5')}
         if self.verbose is True:
             print(f'Prepairing outputfile {file} completed on rank: {self.rank}')
@@ -1094,7 +1302,7 @@ class Prot_Hop:
         df.create_dataset("msd/P", data=self.msd_P)
         
         # properties over time
-        df.create_dataset("transient/time", data=self.t)
+        df.create_dataset("transient/time", data=self.t_full)
         df.create_dataset("transient/index_OH", data=self.OH_i)
         df.create_dataset("transient/index_next_OH", data=self.next_OH_i)
         df.create_dataset("transient/index_H2O", data=self.H2O_i)
@@ -1111,7 +1319,30 @@ class Prot_Hop:
         if self.verbose is True:
             print(f'writing outputfile {file} completed on rank: {self.rank}')
 
-    def write_to_xyz_all(self, type, center=False):
+    def write_to_xyz_all(self, type, center=False) -> None:
+        """
+        Writes the atomic positions to an XYZ or PDB file.
+        Parameters:
+        -----------
+        type : int
+            Specifies the type of positions to write:
+            - 0: Unwrapped unprocessed positions.
+            - 1: Wrapped unprocessed positions.
+            - 2: Unwrapped processed positions.
+            - 3: Wrapped processed positions.
+        center : bool, optional
+            If True, centers the positions before wrapping (default is False).
+        Raises:
+        -------
+        ValueError
+            If an unsupported molecular file output format is specified.
+        Notes:
+        ------
+        - The method uses the `ase` library to write the atomic configurations.
+        - The output format is determined by the `self.xyz_out` attribute, which can be 'xyz' or 'pdb'.
+        - The positions and types of atoms are determined based on the `type` parameter.
+        - If `self.verbose` is True, progress messages are printed.
+        """
         # assesing tasks correctly
         
         # I do have positions of the OH- at every timestep
@@ -1166,7 +1397,22 @@ class Prot_Hop:
         if self.verbose is True:
             print(f'writing {self.folder+name} completed on rank: {self.rank}')
 
-    def save_numpy_files_main(self, path):
+    def save_numpy_files_main(self, path) -> None:
+        """
+        Save simulation data to a compressed NumPy file.
+
+        Parameters:
+        path (str): The directory path where the output file will be saved.
+
+        The method creates the specified directory if it does not exist. It then saves various simulation data arrays
+        into a compressed .npz file named 'output.npz' in the specified directory. The data saved includes tracking 
+        information for OH- and H2O, as well as radial distribution function (rdf) data.
+
+        If the 'cheap' attribute of the class instance is False, the method saves additional rdf data.
+
+        Raises:
+        OSError: If the directory creation fails.
+        """
         try:
             os.makedirs(path, exist_ok=True)
         except OSError as error:
@@ -1195,4 +1441,4 @@ class Prot_Hop:
 # Traj2 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/longest_up_till_now/", cheap=True, xyz_out=True, verbose=True)
 # Traj3 = Prot_Hop(r"/Users/vlagerweij/Documents/TU jaar 6/Project KOH(aq)/Repros/Quantum_to_Transport/post-processing scripts/KOH systems/test_output/", cheap=False, xyz_out=True, verbose=True)
 
-Traj = Prot_Hop(r"AIMD/AIMD_1m_2/run_2/", cheap=False, xyz_out="pdb", verbose=True)
+Traj = Prot_Hop(r"./", cheap=False, xyz_out='xyz', verbose=True, center=True)
