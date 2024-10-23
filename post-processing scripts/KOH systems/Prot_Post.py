@@ -49,6 +49,7 @@ class Prot_Post:
         self.energy = input["transient/energies"][()]
         
         self.index_OH = input["transient/index_OH"][()]
+        self.next_OH = input["transient/index_next_OH"][()]
         self.index_K = input["transient/index_K"][()]
         self.index_H2O = input["transient/index_H2O"][()]
         
@@ -56,7 +57,8 @@ class Prot_Post:
         self.K = input["transient/pos_K"][()]
         self.H2O = input["transient/pos_H2O"][()]
         
-        self.hbs = input["transient/hydrongbonding"][()]
+        self.current_hbs = input["transient/current_OH_hbs"][()]
+        self.next_hbs = input["transient/next_OH_hbs"][()]
         
         self.N_OH = self.OH.shape[1]
         self.N_K = self.K.shape[1]
@@ -673,3 +675,8 @@ def set_plot_settings(svg=False, tex=False):
     plt.rcParams['ytick.major.pad'] = 5
     plt.rcParams['ytick.major.size'] = 5
     plt.rcParams['ytick.major.width'] = 2
+
+post = Prot_Post('post-processing scripts/KOH systems/test_output/')
+reaction_happened = np.where(post.index_OH[1:] != post.index_OH[:-1])[0] + 1
+print(post.index_OH[reaction_happened])
+print(post.index_OH[reaction_happened+1])
