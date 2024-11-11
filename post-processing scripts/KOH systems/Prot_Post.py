@@ -454,6 +454,41 @@ class Prot_Post:
             plt.yscale('log')
             plt.xscale('linear')
         return bins, hist, time_between
+    
+
+    def reaction_statistics(self, n_bins=50) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        reactions = np.where(self.index_OH[1:] != self.index_OH[:-1])[0] + 1
+        
+        # prep storage arrays
+        react_carte = np.zeros((reactions.shape[0], 3), dtype=float)  # x y z
+        react_spher = np.zeros_like(react_carte, dtype=float)  # r theta phi
+        
+        for i, reaction in enumerate(reactions):
+            # print(i, flush=True)
+            # the reaction vector in cartesian coordinates
+            r_react = (self.OH[reaction][0, :] - self.OH[reaction-1][0, :] + self.L/2) % self.L - self.L/2
+
+            react_carte[i] = r_react
+            # in spherical coordinates
+            react_spher[i, 0] = np.sqrt(np.sum(r_react**2))  # radius
+            react_spher[i, 1] = np.arccos(r_react[2]/react_spher[i, 0])  # theta angle 0-180
+            react_spher[i, 2] = np.sign(r_react[1])*np.arccos(r_react[0]/np.sqrt(np.sum(r_react[:-1]**2)))  # phi angle 0-360
+        
+        # calculate the histogram from data
+        react_c = np.zeros((3, n_bins), dtype=float)
+        bins_c = np.zeros((3, n_bins+1), dtype=float)
+        react_c[0, :], bins_c[0, :] = np.histogram(react_carte[:, 0], range=(0, 2.6), bins=50, density=True)
+        react_c[1, :], bins_c[1, :] = np.histogram(react_carte[:, 1], range=(0, 2.6), bins=50, density=True)
+        react_c[2, :], bins_c[2, :] = np.histogram(react_carte[:, 2], range=(0, 2.6), bins=50, density=True)
+        bins_c = (bins_c[:, 1:] + bins_c[:, :-1])/2
+        
+        react_s = np.zeros((3, n_bins), dtype=float)
+        bins_s = np.zeros((3, n_bins+1), dtype=float)
+        react_s[0, :], bins_s[0, :] = np.histogram(react_spher[:, 0], range=(2, 3), bins=50, density=True)
+        react_s[1, :], bins_s[1, :] = np.histogram(react_spher[:, 1], range=(0, np.pi), bins=50, density=True)
+        react_s[2, :], bins_s[2, :] = np.histogram(react_spher[:, 2], range=(-np.pi, np.pi), bins=50, density=True)
+        bins_s = (bins_s[:, 1:] + bins_s[:, :-1])/2
+        return react_c, bins_c, react_s, bins_s
 
 def averages(data):
     mean = data.mean(axis=0)
@@ -676,7 +711,4 @@ def set_plot_settings(svg=False, tex=False):
     plt.rcParams['ytick.major.size'] = 5
     plt.rcParams['ytick.major.width'] = 2
 
-post = Prot_Post('post-processing scripts/KOH systems/test_output/')
-reaction_happened = np.where(post.index_OH[1:] != post.index_OH[:-1])[0] + 1
-print(post.index_OH[reaction_happened])
-print(post.index_OH[reaction_happened+1])
+post = Prot_Post('post-processing scripts/KOH systems/test_output/longest_up_till_now/')
