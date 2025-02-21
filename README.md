@@ -3,7 +3,7 @@ This project analyzed the Grotthuss transfer (proton hopping) of $OH^-$ in KOH (
 
 
 ### AIMD/MLMD
-The code Prot_Hop_mpi.py is a python code 
+The code Prot_Hop_mpi.py is a python code
+
 ### Classical MD 
-## Modeling Transport Properties of Aqueous Potassium Hydroxide by Machine Learning Molecular Force Fields from Quentum Mechanics
 
